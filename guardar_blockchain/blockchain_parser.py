@@ -79,6 +79,7 @@ timeStart = datetime.datetime.now()
 flag = threading.Event()
 
 blockchain_db = Graph("http://localhost:7474/db/data/", user="neo4j", password="123456")
+#sudo service neo4j restart
 
 newBlockToSave = None
 previousChainBlock = None
@@ -92,6 +93,8 @@ blockPack = []
 blockInPack = 0
 blockOrphan = 0
 hashFirstBlockPack = ''
+
+lastTenBlocks = []
 
 def readBlockchain(): 
 	#f = open('blockchainReduced.dat','r')
@@ -206,6 +209,7 @@ def getBlockContent(block):
 	global blockInPack 
 	global blockOrphan 
 	global hashFirstBlockPack
+	global lastTenBlocks
 
 	#if(blocksRead == 29664 or blocksRead == 39317):
 	#	return
@@ -354,8 +358,10 @@ def getBlockContent(block):
 
 	newBlockNode = Node("Block", magicId=newBlockToSave.magicID, blockSize=newBlockToSave.blockSize, 
 					blockHeader=newBlockToSave.blockHeader, transactionsCount=newBlockToSave.transactionsCount, 
-					hashHeader=newBlockToSave.hashHeader, version=newBlockToSave.version)
+					hashHeader=newBlockToSave.hashHeader, timeStamp=newBlockToSave.timeStamp, version=newBlockToSave.version)
 	tx.create(newBlockNode)
+
+	lastTenBlocks.append(newBlockNode)
 
 	transactionsSavedNeo4j = 0
 	iTx = 0
@@ -400,12 +406,23 @@ def getBlockContent(block):
 	# Buscamos el bloque anterior para crear la relación entre bloques
 	# ----------------------------------------------------------------
 	if(previousBlockHash != ''.join(['0']*64)):
+		previousChainBlock = None
 		# Bloque anterior
-		previousChainBlock = blockchain_db.find_one('Block', property_key='hashHeader', property_value=previousBlockHash)
+		if(len(lastTenBlocks)>0):
+			for block in lastTenBlocks:
+				if(block['hashHeader'] == previousBlockHash):
+					previousChainBlock = block
+					break
+			if(previousChainBlock == None): 
+				previousChainBlock = blockchain_db.find_one('Block', property_key='hashHeader', property_value=previousBlockHash)
+		else:
+			previousChainBlock = blockchain_db.find_one('Block', property_key='hashHeader', property_value=previousBlockHash)
 
 		if(previousChainBlock != None):
 			prevBlockRelation = Relationship(newBlockNode,'PREVIOUS_BLOCK',previousChainBlock)
 			blockchain_db.create(prevBlockRelation)
+		if(len(lastTenBlocks)==8):
+			lastTenBlocks.remove(lastTenBlocks[0])
 
 
 	#if(previousBlockHash != ''.join(['0']*64)):

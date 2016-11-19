@@ -10,8 +10,11 @@ class execute {
 		Driver driver = GraphDatabase.driver( "bolt://localhost:7687", AuthTokens.basic( "neo4j", "123456" ) );
 		Session session = driver.session();
 
-		StatementResult result = session.run( "MATCH (b:Block) WITH COUNT(b) as sumB RETURN sumB" );
-		System.out.println(result.next().get( "sumB" ));
+		//StatementResult result = session.run( "MATCH (b:Block) WITH COUNT(b) as sumB RETURN sumB" );
+		//System.out.println(result.next().get( "sumB" ));
+
+		StatementResult result = session.run("OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction) WHERE b.timeStamp={timeStamp} RETURN b,t,ID(t) LIMIT 1",
+											Values.parameters())
 
 		session.close();
 		driver.close();
