@@ -418,7 +418,7 @@ def getBlockContent(block):
 		previousChainBlock = None
 		# Bloque anterior
 		if(len(lastSixBlocks)>0):
-			for block in range(len(lastSixBlocks)-1,0,-1):
+			for block in range(len(lastSixBlocks),0,-1):
 				if(block['hashHeader'] == previousBlockHash):
 					previousChainBlock = block
 					break
