@@ -94,7 +94,9 @@ blockInPack = 0
 blockOrphan = 0
 hashFirstBlockPack = ''
 
-lastTenBlocks = []
+startStoring = False
+
+lastSixBlocks = []
 
 def readBlockchain(): 
 	#f = open('blockchainReduced.dat','r')
@@ -209,7 +211,8 @@ def getBlockContent(block):
 	global blockInPack 
 	global blockOrphan 
 	global hashFirstBlockPack
-	global lastTenBlocks
+	global lastSixBlocks
+	global startStoring
 
 	#if(blocksRead == 29664 or blocksRead == 39317):
 	#	return
@@ -227,6 +230,12 @@ def getBlockContent(block):
 	#timeStampFormat = time.strftime('%d-%m-%Y %H:%M:%S', timeStampDecoded)
 	#difficultyTarget = endianness(block[160:168])
 	#nonce = endianness(block[168:176])
+
+	# SIRVE PARA CORREGIR ERRORES DE REPETICION DEL BLOCKCHAIN
+	if(timeStamp == "49696ef8" && blocksRead != 0):
+		startStoring = True
+	if(startStoring == False):
+		return 
 
 
 	headerBlockHex = block[16:176].decode('hex')
@@ -361,7 +370,7 @@ def getBlockContent(block):
 					hashHeader=newBlockToSave.hashHeader, timeStamp=newBlockToSave.timeStamp, version=newBlockToSave.version)
 	tx.create(newBlockNode)
 
-	lastTenBlocks.append(newBlockNode)
+	lastSixBlocks.append(newBlockNode)
 
 	transactionsSavedNeo4j = 0
 	iTx = 0
@@ -408,8 +417,8 @@ def getBlockContent(block):
 	if(previousBlockHash != ''.join(['0']*64)):
 		previousChainBlock = None
 		# Bloque anterior
-		if(len(lastTenBlocks)>0):
-			for block in lastTenBlocks:
+		if(len(lastSixBlocks)>0):
+			for block in range(len(lastSixBlocks)-1,0,-1):
 				if(block['hashHeader'] == previousBlockHash):
 					previousChainBlock = block
 					break
@@ -421,8 +430,8 @@ def getBlockContent(block):
 		if(previousChainBlock != None):
 			prevBlockRelation = Relationship(newBlockNode,'PREVIOUS_BLOCK',previousChainBlock)
 			blockchain_db.create(prevBlockRelation)
-		if(len(lastTenBlocks)==8):
-			lastTenBlocks.remove(lastTenBlocks[0])
+		if(len(lastSixBlocks)==6):
+			lastSixBlocks.remove(lastSixBlocks[0])
 
 
 	#if(previousBlockHash != ''.join(['0']*64)):
