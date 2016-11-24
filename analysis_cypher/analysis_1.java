@@ -5,6 +5,47 @@ import java.util.*;
 //java -cp .:neo4j-java-driver-1.0.6.jar execute
 
 class execute {
+
+	public HashMap originNodes(String timeStamp, Session session){
+		Map<Integer, Map> resultsBlocks = new HashMap<Integer, Map>();
+		Map<Integer, Map> resultsTransactions = new HashMap<Integer, Map>();
+		Map<Integer, Map> resultsOutputs = new HashMap<Integer, Map>();
+
+		Map<String, Object> params = new HashMap<String, Object>();
+
+		Record record;
+
+		params.put("timeStamp", timeStamp);
+
+		StatementResult result = session.run("OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction) WHERE b.timeStamp={timeStamp} RETURN b,t,ID(t) LIMIT 1",
+											params);
+		if(result.hasNext()){
+			record = result.next();
+			resultsBlocks.put(1, record.get("b").asMap());
+			resultsTransactions.put(1, record.get("t").asMap());
+			double idTx = record.get("ID(t)").asDouble();
+			params.put("idTx", idTx);
+			System.out.println(idTx);
+		}
+
+		result = session.run("OPTIONAL MATCH (t:Transaction)<-[:TO]-(o:Output) WHERE ID(t)={idTx} RETURN o,ID(o) LIMIT 1",
+							params);
+
+		double idOut;
+		if(result.hasNext()){
+			record = result.next();
+			resultsOutputs.put(1, record.get("o").asMap());
+			idOut = record.get("ID(o)").asDouble();
+		}
+
+		Map<String, Object> originNodes = new HashMap<String, Object>();
+		originNodes.put("b", resultsBlocks);
+		originNodes.put("t", resultsTransactions);
+		originNodes.put("o", resultsOutputs);
+		originNodes.put("ID(o)", idOut);
+		return originNodes;
+	} 
+
 	
 	public static void main (String[] args){
 		System.out.println("prueba");
@@ -16,22 +57,33 @@ class execute {
 
 		// Diccionarios donde se van a guardar los resultados para luego mostrarlos
 		Map<Integer, Map> resultsBlocks = new HashMap<Integer, Map>();
-		Map<String, Map> resultsTransactions = new HashMap<String, Map>();
-		Map<String, Map> resultsInputs = new HashMap<String, Map>();
-		Map<String, Map> resultsOutputs = new HashMap<String, Map>();
+		Map<Integer, Map> resultsTransactions = new HashMap<Integer, Map>();
+		Map<Integer, Map> resultsInputs = new HashMap<Integer, Map>();
+		Map<Integer, Map> resultsOutputs = new HashMap<Integer, Map>();
 
-		Map<String, Object> params1 = new HashMap<String, Object>();
+		Map<String, Object> origin = new HashMap<String, Object>();
+
+		//Map<String, Object> params1 = new HashMap<String, Object>();
+
 
 		String timeStamp = "49696ef8";
-		params1.put("timeStamp", timeStamp.toString());
-		StatementResult result1 = session.run("OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction) WHERE b.timeStamp={timeStamp} RETURN b,t,ID(t) LIMIT 1",
-											params1);
-		if(result1.hasNext()){
-			Record record1 = result1.next();
-			resultsBlocks.put(1, record1.get("b").asMap());
-		}
-		System.out.println(resultsBlocks.get(1).get("magicId"));  
-
+		origin = originNodes(timeStamp, session);
+		//params1.put("timeStamp", timeStamp.toString());
+		//StatementResult result = session.run("OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction) WHERE b.timeStamp={timeStamp} RETURN b,t,ID(t) LIMIT 1",
+		//									params1);
+		//if(result.hasNext()){
+		//	record = result.next();
+		//	resultsBlocks.put(1, record.get("b").asMap());
+		//	resultsTransactions.put(1, record.get("t").asMap());
+		//	double idTx = record.get("ID(t)").asDouble();
+		//	System.out.println(idTx);
+		//}
+		//System.out.println(resultsTransactions.get(1).get("hashTransaction"));
+		//System.out.println(resultsBlocks.get(1).get("magicId"));  
+		//params1.put("idTx", idTx.toString());
+		//result = session.run("OPTIONAL MATCH (t:Transaction)<-[:TO]-(o:Output) WHERE ID(t)={idTx} RETURN o,ID(o) LIMIT 1",
+		//									params1);
+		
 		/*while (result.hasNext()){
     		Record record = result.next();
     		System.out.println(record);
