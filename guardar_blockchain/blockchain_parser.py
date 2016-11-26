@@ -76,6 +76,9 @@ blockChainList = []
 blockChainRead = False
 timeStart = datetime.datetime.now()
 
+previousTimeStamp = int("49696ef8",16)
+timeStamp3minits = 180
+
 flag = threading.Event()
 
 blockchain_db = Graph("http://localhost:7474/db/data/", user="neo4j", password="123456")
@@ -88,6 +91,7 @@ SecondNodeHashKept = ''
 SecondNodeHashCalculated = ''
 
 blocksRead = 0
+
 
 blockPack = []
 blockInPack = 0
@@ -213,6 +217,8 @@ def getBlockContent(block):
 	global hashFirstBlockPack
 	global lastSixBlocks
 	global startStoring
+	global timeStamp3minits
+	global previousTimeStamp
 
 	#if(blocksRead == 29664 or blocksRead == 39317):
 	#	return
@@ -232,10 +238,15 @@ def getBlockContent(block):
 	#nonce = endianness(block[168:176])
 
 	# SIRVE PARA CORREGIR ERRORES DE REPETICION DEL BLOCKCHAIN
-	if(timeStamp == "49696ef8" && blocksRead != 0):
-		startStoring = True
-	if(startStoring == False):
-		return 
+	#if(timeStamp == "49696ef8" && blocksRead != 0):
+	#	startStoring = True
+	#if(startStoring == False):
+	#	return 
+
+	if(timeStamp < (previousTimeStamp-timeStamp3minits)):
+		return
+	else:
+		previousTimeStamp = timeStamp
 
 
 	headerBlockHex = block[16:176].decode('hex')
