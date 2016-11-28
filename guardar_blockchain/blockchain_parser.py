@@ -232,6 +232,7 @@ def getBlockContent(block):
 	previousBlockHash = endianness(block[24:88])
 	#merkleRoot = endianness(block[88:152])
 	timeStamp = endianness(block[152:160])
+	timeStampInt = int(timeStamp,16)
 	#timeStampDecoded = time.gmtime(int(timeStamp,16))
 	#timeStampFormat = time.strftime('%d-%m-%Y %H:%M:%S', timeStampDecoded)
 	#difficultyTarget = endianness(block[160:168])
@@ -243,10 +244,10 @@ def getBlockContent(block):
 	#if(startStoring == False):
 	#	return 
 
-	if(timeStamp < (previousTimeStamp-timeStamp3minits)):
+	if(timeStampInt < (previousTimeStamp-timeStamp3minits)):
 		return
 	else:
-		previousTimeStamp = timeStamp
+		previousTimeStamp = int(timeStamp,16)
 
 
 	headerBlockHex = block[16:176].decode('hex')
@@ -390,13 +391,13 @@ def getBlockContent(block):
 					inputCount=transactions[iTx].inputCount, outputCount=transactions[iTx].outputCount, 
 					lockTime=transactions[iTx].lockTime,
 					hashTransaction=transactions[iTx].hashTransaction)
-		#tx.create(transactionNode)
+		tx.create(transactionNode)
 
 		for inputObj in transactionsInputs[iTx]:
 			inputNode = Node("Input", indexPreviousTxout=inputObj.indexPreviousTxout, scriptLength=inputObj.scriptLength,
 					script=inputObj.script, sequenceNumber=inputObj.sequenceNumber,
 					hashPreviousTransaction=inputObj.hashPreviousTransaction)
-			#tx.create(inputNode)
+			tx.create(inputNode)
 			tx.create(Relationship(inputNode, transactionNode))
 			# --------------------------------------------------
 			# Busco el nodo output que hace refencia al origen del input
@@ -429,7 +430,7 @@ def getBlockContent(block):
 		previousChainBlock = None
 		# Bloque anterior
 		if(len(lastSixBlocks)>0):
-			for block in range(len(lastSixBlocks),0,-1):
+			for block in lastSixBlocks[::-1]:
 				if(block['hashHeader'] == previousBlockHash):
 					previousChainBlock = block
 					break
