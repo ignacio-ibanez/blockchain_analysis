@@ -16,36 +16,43 @@ class Execute {
 
 		Map<String, Object> originBlockNode = new HashMap<String, Object>();
 
-		String timeStamp = "49696ef8";
+		String timeStamp = "49696ef7";
 		int scope = 1;
 		BlockNodes originBlock = new BlockNodes();
 		originBlockNode = originBlock.getOriginNodes(timeStamp, session).getNodes().get(0);
-		//System.out.println(originBlockNode.get("magicId"));
 		nodesAnalysed.add(0, originBlock);
-		System.out.println("El nodo origen ha sido guardado");
+		/*System.out.println("El nodo origen ha sido guardado");
 		System.out.println("El hash del bloque origen es: " + originBlockNode.get("hashHeader"));
 		System.out.println("El hash de la transaccion origen es: " + originBlock.getOriginNodes(timeStamp, session).getNodes().get(1).get("hashTransaction"));
 		System.out.println("El indexTxOut del output es: " + originBlock.getOriginNodes(timeStamp, session).getNodes().get(2).get("indexTxOut"));
 		System.out.println("El scriptLength del output es: " + originBlock.getOriginNodes(timeStamp, session).getNodes().get(2).get("scriptLength"));
 		System.out.println("El id de la transaccion es: " + originBlock.getOriginNodes(timeStamp, session).getIds().get("idTx"));
 		System.out.println("El id del output es: " + originBlock.getOriginNodes(timeStamp, session).getIds().get("idOut"));
-		System.out.println("");
+		System.out.println("");*/
 
-		//int idOut = originBlock.getIds().get("idOut");   --- SE PONE EL DE ABAJO PARA PRUEBAS, LUEGO DESCOMENTAR
-		int idOut = 957;
+
+		// Obtención de los siguientes bloques en el seguimiento hacia adelante
+		int idOut = originBlock.getIds().get("idOut");   //--- SE PONE EL DE ABAJO PARA PRUEBAS, LUEGO DESCOMENTAR
+		//int idOut = 957;    // PRUEBA
 		for(int i=1; i<=scope; i++){
 			BlockNodes nodesBlock = new BlockNodes();
-			nodesBlock.getIterationBlock(idOut, session);
+			if(nodesBlock.getIterationBlock(idOut, session) == null){
+				break;
+			}
 			nodesAnalysed.add(i, nodesBlock);
-			System.out.println("");
-			System.out.println("Iteración " + (i));
-			int numberNodes = nodesAnalysed.get(i).getNodes().size();
+			/*int numberNodes = nodesAnalysed.get(i).getNodes().size();
 			System.out.println("Número de nodos: " + numberNodes);
 			System.out.println("El hash del nodo bloque es: " + nodesAnalysed.get(i).getNodes().get(0).get("hashHeader"));
 			System.out.println("El hash de la transaccion es: " + nodesAnalysed.get(i).getNodes().get(1).get("hashTransaction"));
 			System.out.println("El indexTxOut del output es: " + nodesAnalysed.get(i).getNodes().get(numberNodes-1).get("indexTxOut"));
-			System.out.println("El script del primer input es: " + nodesAnalysed.get(i).getNodes().get(2).get("script"));
+			System.out.println("El script del primer input es: " + nodesAnalysed.get(i).getNodes().get(2).get("script"));*/
 		}
+
+
+		// Obtención de los bloques anteriores en el seguimiento hacia atras
+		//for(int i=1; i<nodesAnalysed.size(); i++){
+
+		//}
 
 		
     	/*
@@ -74,22 +81,42 @@ class BlockNodes{
 
 		params.put("timeStamp", timeStamp);
 
-		StatementResult result = session.run("OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction)<-[:TO]-(o:Output) WHERE b.timeStamp={timeStamp} RETURN b,t,o,ID(t),ID(o) LIMIT 1",
-											params);
-		if(result.hasNext()){
+		String queryCypher = "OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction)<-[:TO]-(o:Output) WHERE b.timeStamp={timeStamp} RETURN b,t,o,ID(t),ID(o) LIMIT 1";
+		StatementResult result = session.run(queryCypher, params);
+		int timeStampModUpInt;
+		String timeStampModUp = timeStamp;
+		int timeStampModDownInt;
+		String timeStampModDown = timeStamp; 
+		boolean up = true;
+		record = result.next();
+		while(record.get("b").toString() == "NULL"){
+			if(up){
+				timeStampModUpInt = Integer.parseInt(timeStampModUp, 16) + 1;
+				timeStampModUp = Integer.toHexString(timeStampModUpInt);
+				params.replace("timeStamp", timeStampModUp);
+				up = false;
+			}else{
+				timeStampModDownInt = Integer.parseInt(timeStampModDown, 16) - 1;
+				timeStampModDown = Integer.toHexString(timeStampModDownInt);
+				params.replace("timeStamp", timeStampModDown);
+				up = true;
+			}
+			result = session.run(queryCypher, params);
 			record = result.next();
-			addToNodes(0,record.get("b").asMap());
-			addToNodes(1, record.get("t").asMap());
-			addToNodes(2, record.get("o").asMap());
-
-			double idTxd = record.get("ID(t)").asDouble();
-			int idTx = (int) idTxd;
-			addToIds("idTx", idTx);
-
-			double idOutd = record.get("ID(o)").asDouble();
-			int idOut = (int) idOutd;
-			addToIds("idOut", idOut);
 		}
+
+		
+		addToNodes(0,record.get("b").asMap());
+		addToNodes(1, record.get("t").asMap());
+		addToNodes(2, record.get("o").asMap());
+
+		double idTxd = record.get("ID(t)").asDouble();
+		int idTx = (int) idTxd;
+		addToIds("idTx", idTx);
+
+		double idOutd = record.get("ID(o)").asDouble();
+		int idOut = (int) idOutd;
+		addToIds("idOut", idOut);
 
 		//StatementResult result = session.run("OPTIONAL MATCH (t:Transaction)<-[:TO]-(o:Output) WHERE ID(t)={idTx} RETURN o,ID(o) LIMIT 1",
 		//					params);
@@ -126,6 +153,8 @@ class BlockNodes{
 			double idTxd = record.get("ID(t)").asDouble();
 			int idTx = (int) idTxd;
 			params.put("idTx", idTx);
+		}else{
+			return null;
 		}
 
 		result = session.run("START t=node({idTx}) MATCH (t)<-[:TO]-(i:Input) RETURN i,ID(i)", params);
@@ -161,7 +190,6 @@ class BlockNodes{
 			addToNodes(indexMap, outputs.get(indexOutHigher));
 		}
 		
-
 		return this;
 	}
 
