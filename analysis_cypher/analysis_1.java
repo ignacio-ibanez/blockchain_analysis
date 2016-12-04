@@ -142,7 +142,6 @@ class BlockNodes{
 
 		params.put("idOut", idOutStart);
 
-		// MIRAR QUERY MÁS COMLEJA
 		StatementResult result = session.run("START o=node({idOut}) MATCH (o)<-[:ORIGIN_OUTPUT]-(i:Input)-[:TO]->(t:Transaction)-[:TO]->(b:Block) RETURN b,t,ID(t) LIMIT 1",
 										params);
 
@@ -171,6 +170,8 @@ class BlockNodes{
 
 		result = session.run("START t=node({idTx}) MATCH (t)<-[:TO]-(o:Output) RETURN o,ID(o)", params);
 
+		// LA PARTE DE ABAJO, EN PRINCIPIO SE HACE CON EL METODO storeChangeOutput
+		/*
 		int indexOutHigher = 0; // index dentro de la lista donde se encuentra el output a devolver
 		int indexObjOuts = 0; 
 		double higherIndex = 0;  // index mas alto encontrado (el almacenado en hex)
@@ -188,11 +189,121 @@ class BlockNodes{
 		}
 		if(indexObjOuts > 1){
 			addToNodes(indexMap, outputs.get(indexOutHigher));
-		}
-		
+		}*/
+		storeChangeOutput(result, session);
+
+
 		return this;
 	}
 
+	private void storeChangeOutput(StatementResult result, Session session){
+		// HAY QUE PENSAR QUE HACER CON ESTE TEMA SI EL NUMERO DE OUTPUTS ES MAYOR QUE 2
+		List<Map<String, Object>> outputs = new ArrayList<Map<String, Object>>();
+		Map<Integer, Integer> idsOutputs = new ArrayList<Integer, Integer>();
+		
+		Record record;
+		int indexOutput = 1;
+		while(result.hasNext()){
+			record = result.next();
+			outputs.add(indexOutput,record.get("o").asMap());
+			double idOutd = record.get("ID(o)").asDouble();
+			int idOut = (int) idOutd;
+			idsOutputs.put(indexOutput, idOut);
+			indexOutput++;
+		}
+
+		// Sacamos el numero de inputs y de outputs para realizar diferentes acciones dependiendo del caso
+		int numberOutputs = outputs.size();
+		int numberInputs = this.nodes.size()-2;
+		if(numberInputs==1){
+			if(numberOutputs == 1){
+				// Abandonar este camino
+				return;
+			}else{
+				// Seguimiento
+			}
+		}else{
+			if(numberOutputs == 1){
+				// Abandonar este camino
+				return;
+			}else if(numberOutputs == 2){
+				// Buscar combinaciones
+				combinationXIn2Out(outputs,session);
+			}else{
+				if(numberOutputs > 6){  // PENSAR ESTE VALOR (PARA CONSIDERAR POOLS)
+					return;
+				}else{
+					// Seguimiento
+				}
+			}
+		}
+
+	}
+
+	// Devuelve los satoshis de los outputs de una transacción
+	private int getSatoshisOut(List<Map<String, Object>> outputs){
+		int satoshisOut = 0;
+		for (Map<String, Object> output : outputs){
+			satoshisOut += output.get("valueSatoshis");
+		} 
+		return satoshisOut;
+	}
+
+	// Devuelve el valor de la propina en una transacción en satoshis
+	private int getTransactionFee(int satoshisOut, Session session){
+		int numberInputs = this.nodes.size()-2;
+		int satoshisIn = 0;
+		int idInput;
+		for(int i=0; i<numberInputs; i++){
+			idInput = this.ids.get("idIn"+(i+1));
+			satoshisIn += getSatoshis(idInput, session);
+		}
+		return satoshisIn-satoshisOut;
+	}
+
+	// Devuelve el numero de satoshis que se estan gastando en un input determinado
+	private int getSatoshis(int idInput, Session session){
+		Map<String, Object> params = new HashMap<String, Object>();
+		Statement result = session.run("START i=node({idInput}) MATCH (i)-[:ORIGIN_OUTPUT]->(o:Output) RETURN o", params);
+		if(result.hasNext()){
+			Record record = result.next();
+			double satoshisD record.get("o").get("valueSatoshis").asDouble();
+			int satoshis = (int) satoshisD;
+			return satoshis;
+		}else{
+			return 0;
+		}
+	}
+
+	// Sirve para las transacciones con más de un input y dos outputs.
+	// Devuelve el indice de la lista de outputs que se le pasa. Ese indice señala al output cambio.
+	private int combinationXIn2Out(List<Map<String, Object>> outputs, Session session){
+		int numberInputs = this.nodes.size()-2;
+		Map<Integer, Integer> inputsValues = new HashMap<Integer, Integer>();
+		
+		for(int i=0; i<numberInputs; i++){
+			int shatoshisInput = getSatoshis(this.ids.get("idIn"+(i+1)),session);
+			if((shatoshisInput>outputs.get(0).get("valueSatoshis")) && (shatoshisInput<outputs.get(1).get("valueSatoshis"))){
+				return 0;
+			}else if((shatoshisInput>outputs.get(1).get("valueSatoshis")) && (shatoshisInput<outputs.get(0).get("valueSatoshis"))){
+				return 1;
+			}else{
+				int satoshisCombination = 0;
+				for(int j=0; j<numberInputs; j++){
+					if(i==j) continue;
+					else{
+						satoshisCombination += getSatoshis(this.ids.get("idIn"+(j+1)),session);
+					}
+				}
+				if((satoshisCombination>outputs.get(0).get("valueSatoshis")) && (satoshisCombination<outputs.get(1).get("valueSatoshis"))){
+					return 0;
+				}else if((satoshisCombination<outputs.get(0).get("valueSatoshis")) && (satoshisCombination>outputs.get(1).get("valueSatoshis"))){
+					return 1;
+				}
+			}
+		}
+
+	}
 
 	public void addToNodes(int position, Map<String, Object> newNode){
 		this.nodes.add(position, newNode);
