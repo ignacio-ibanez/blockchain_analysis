@@ -73,6 +73,8 @@ class Execute {
 class BlockNodes{
 	private Map<String, Integer> ids = new HashMap<String, Integer>();
 	private List<Map<String, Object>> nodes = new ArrayList<Map<String, Object>>();
+	private Map<Integer, String> addressIdInput = new HashMap<String, Integer>();
+	private Map<Integer, String> candidateAddressIdOutput = new HashMap<Integer, String>();
 
 	public BlockNodes getOriginNodes(String timeStamp, Session session){
 		Map<String, Object> params = new HashMap<String, Object>();
@@ -197,12 +199,11 @@ class BlockNodes{
 	}
 
 	private void storeChangeOutput(StatementResult result, Session session){
-		// HAY QUE PENSAR QUE HACER CON ESTE TEMA SI EL NUMERO DE OUTPUTS ES MAYOR QUE 2
 		List<Map<String, Object>> outputs = new ArrayList<Map<String, Object>>();
 		Map<Integer, Integer> idsOutputs = new ArrayList<Integer, Integer>();
 		
 		Record record;
-		int indexOutput = 1;
+		int indexOutput = 0;
 		while(result.hasNext()){
 			record = result.next();
 			outputs.add(indexOutput,record.get("o").asMap());
@@ -221,6 +222,11 @@ class BlockNodes{
 				return;
 			}else{
 				// Seguimiento
+				for(int i=0; i<numberOutputs; i++){
+					if(followOutput(this.idsOutputs.get(i), session, 10)){
+
+					}
+				}
 			}
 		}else{
 			if(numberOutputs == 1){
@@ -228,7 +234,9 @@ class BlockNodes{
 				return;
 			}else if(numberOutputs == 2){
 				// Buscar combinaciones
-				combinationXIn2Out(outputs,session);
+				int changeOutputIndex = combinationXIn2Out(outputs,session);
+				addToNodes(this.nodes.size(),outputs.get(changeOutputIndex));
+				addToIds("idOut", idsOutputs.get(changeOutputIndex));
 			}else{
 				if(numberOutputs > 6){  // PENSAR ESTE VALOR (PARA CONSIDERAR POOLS)
 					return;
@@ -238,6 +246,61 @@ class BlockNodes{
 			}
 		}
 
+	}
+
+	private boolean followOutput(int idOutput, Session session, int iterationFollow){
+		Map<String, Object> params = new HashMap<String, Object>();
+
+		Record record;
+
+		params.put("idOut", idOutput);
+
+		StatementResult result = session.run("START o=node({idOut}) MATCH (o)<-[:ORIGIN_OUTPUT]-(i:Input)-[:TO]->(t:Transaction) RETURN ID(t) LIMIT 1",
+										params);
+
+		if(result.hasNext()){
+			record = result.next();
+			double idTxd = record.get("ID(t)").asDouble();
+			int idTx = (int) idTxd;
+			params.put("idTx", idTx);
+		}else{
+			return null;
+		}
+
+		result = session.run("START t=node({idTx}) MATCH (t)<-[:TO]-(i:Input)<-[:ORIGIN_OUTPUT]-(o:Output) RETURN o,ID(o)", params);
+
+		while(result.hasNext()){
+			record = result.next();
+			double idOutd = record.get("ID(o)").asDouble();
+			int idOut = (int) idOutd;
+			String address = getAddress(record.get("o").asMap());
+			candidateAddressIdOutput.put(idOut, address);
+		}
+
+
+	} 
+
+	private String getAddress(Map<String, Object> output){
+		double scriptLength = output.get("scriptLength").asDouble();
+		String script = output.get("script").asString();
+		// pensar como tratar si en el mismo seguimiento se ven dos tipos diferentes de addresses
+		switch (scriptLength){
+			case 25.0:
+				if(script.subString(46,47) == "88"){
+					return script.subString(5,46);
+				}else{
+					return script.subString(5);
+				}
+				
+			case 67.0:
+				return script.subString(2,130);
+
+			case 66.0:
+				return script.subString(0,128);
+
+			default:
+				return null;
+		}
 	}
 
 	// Devuelve los satoshis de los outputs de una transacción
@@ -302,7 +365,6 @@ class BlockNodes{
 				}
 			}
 		}
-
 	}
 
 	public void addToNodes(int position, Map<String, Object> newNode){

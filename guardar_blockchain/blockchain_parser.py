@@ -346,7 +346,9 @@ def getBlockContent(block):
 			scriptLength = int(endianness(block[indexFirstOutput+indexesFromFirstOutput:indexFirstOutput+indexesFromFirstOutput+variableLengthOutputScript*2]),16)
 			indexesFromFirstOutput += variableLengthOutputScript*2
 
-			lockingScript = endianness(block[indexFirstOutput+indexesFromFirstOutput:indexFirstOutput+indexesFromFirstOutput+scriptLength*2])
+
+			# SIN ENDIANNESS
+			lockingScript = block[indexFirstOutput+indexesFromFirstOutput:indexFirstOutput+indexesFromFirstOutput+scriptLength*2]
 			indexesFromFirstOutput += scriptLength*2
 
 			indexOrderOut = ''.join(['0']*(8-len(str(hex(outputsSaved))[2:]))) + str(hex(outputsSaved))[2:]
