@@ -150,28 +150,23 @@ class BlockNodes{
 	}
 
 	public BlockNodes getIterationBlock(int idOutStart , Session session){
-		Map<String, Object> params = new HashMap<String, Object>();
-
+		StatementResult result;
 		Record record;
+		CypherQuery query = new CypherQuery();
 
-		params.put("idOut", idOutStart);
-
-		StatementResult result = session.run("START o=node({idOut}) MATCH (o)<-[:ORIGIN_OUTPUT]-(i:Input)-[:TO]->(t:Transaction)-[:TO]->(b:Block) RETURN b,t,ID(t) LIMIT 1",
-										params);
-
+		int idTx;
+		result = query.getNextBlockFromOutput(idOut,session);
 		if(result.hasNext()){
 			record = result.next();
 			addToNodes(0,record.get("b").asMap());
 			addToNodes(1,record.get("t").asMap());
 			double idTxd = record.get("ID(t)").asDouble();
-			int idTx = (int) idTxd;
-			params.put("idTx", idTx);
+			idTx = (int) idTxd;
 		}else{
 			return null;
 		}
 
-		result = session.run("START t=node({idTx}) MATCH (t)<-[:TO]-(i:Input) RETURN i,ID(i)", params);
-
+		result = query.getInputsOfTx(idTx,session);
 		int indexMap = 2;
 		while(result.hasNext()){
 			record = result.next();
@@ -187,7 +182,8 @@ class BlockNodes{
 
 		System.out.println("El numero de addresses guardadas es: " + addressIdInput.size());
 
-		result = session.run("START t=node({idTx}) MATCH (t)<-[:TO]-(o:Output) RETURN o,ID(o)", params);
+		result = query.getOutputsOfTx(idTx,session);
+		storeChangeOutput(result,session);
 
 		// LA PARTE DE ABAJO, EN PRINCIPIO SE HACE CON EL METODO storeChangeOutput
 		/*
@@ -209,7 +205,6 @@ class BlockNodes{
 		if(indexObjOuts > 1){
 			addToNodes(indexMap, outputs.get(indexOutHigher));
 		}*/
-		storeChangeOutput(result, session);
 
 		return this;
 	}
@@ -290,24 +285,20 @@ class BlockNodes{
 			return false;
 		}
 
+		CypherQuery query = new CypherQuery();
 		Record record;
 
-		params.put("idOut", idOutput);
-
-		StatementResult result = session.run("START o=node({idOut}) MATCH (o)<-[:ORIGIN_OUTPUT]-(i:Input)-[:TO]->(t:Transaction) RETURN ID(t) LIMIT 1",
-										params);
-
+		int idTx;
+		result = query.getNextBlockFromOutput(idOutput,session);
 		if(result.hasNext()){
 			record = result.next();
 			double idTxd = record.get("ID(t)").asDouble();
-			int idTx = (int) idTxd;
-			params.put("idTx", idTx);
+			idTx = (int) idTxd;
 		}else{
 			return false;
 		}
 
-		result = session.run("START t=node({idTx}) MATCH (t)<-[:TO]-(i:Input)<-[:ORIGIN_OUTPUT]-(o:Output) RETURN o,ID(o)", params);
-
+		result = query.getOutputsOfTx(idTx,session);
 		int idOut = -1;
 		while(result.hasNext()){
 			record = result.next();
@@ -356,7 +347,7 @@ class BlockNodes{
 		return satoshisOut;
 	}
 
-	// Devuelve el valor de la propina en una transacción en satoshis
+	// Devuelve el valor de la propina en una transacción en satoshis de esta transacción
 	private int getTransactionFee(int satoshisOut, Session session){
 		int numberInputs = this.nodes.size()-2;
 		int satoshisIn = 0;
@@ -371,7 +362,9 @@ class BlockNodes{
 	// Devuelve el numero de satoshis que se estan gastando en un input determinado
 	private int getSatoshis(int idInput, Session session){
 		Map<String, Object> params = new HashMap<String, Object>();
-		StatementResult result = session.run("START i=node({idInput}) MATCH (i)-[:ORIGIN_OUTPUT]->(o:Output) RETURN o", params);
+		CypherQuery query = new CypherQuery();
+
+		StatementResult result = query.getOriginOutput(idInput,session);
 		if(result.hasNext()){
 			Record record = result.next();
 			double satoshisD = record.get("o").get("valueSatoshis").asDouble();
@@ -418,8 +411,8 @@ class BlockNodes{
 
 	private Map<String, Object> getOriginOutput(int idInput, Session session){
 		Map<String, Object> params = new HashMap<String, Object>();
-		params.put("idInput", idInput);
-		StatementResult result = session.run("START i=node({idInput}) MATCH (i)-[:ORIGIN_OUTPUT]->(o:Output) RETURN o", params);
+		CypherQuery query = new CypherQuery();
+		StatementResult result = query.getOriginOutput(idInput,session);
 		if(result.hasNext()){
 			Record record = result.next();
 			return record.get("o").asMap();
@@ -447,4 +440,37 @@ class BlockNodes{
 	public Map<String, Integer> getIds(){
 		return this.ids;
 	}
+}
+
+class CypherQuery{
+
+	public StatementResult getNextBlockFromOutput(int idOut, Session session){
+		Map<String, Object> params = new HashMap<String, Object>();
+		params.put("idOut",idOut);
+		StatementResult result = session.run("START o=node({idOut}) MATCH (o)<-[:ORIGIN_OUTPUT]-(i:Input)-[:TO]->(t:Transaction)-[:TO]->(b:Block) RETURN b,t,ID(t) LIMIT 1",
+					params);
+		return result;
+	}
+
+	public StatementResult getInputsOfTx(int idTx, Session session){
+		Map<String, Object> params = new HashMap<String, Object>();
+		params.put("idTx",idTx);
+		StatementResult result = session.run("START t=node({idTx}) MATCH (t)<-[:TO]-(i:Input) RETURN i,ID(i)", params);
+		return result;
+	}
+
+	public StatementResult getOutputsOfTx(int idTx, Session session){
+		Map<String, Object> params = new HashMap<String, Object>();
+		params.put("idTx",idTx);
+		StatementResult result = session.run("START t=node({idTx}) MATCH (t)<-[:TO]-(o:Output) RETURN o,ID(o)", params);
+		return result;
+	}
+
+	public StatementResult getOriginOutput(int idInput, Session session){
+		Map<String, Object> params = new HashMap<String, Object>();
+		params.put("idInput",idInput);
+		StatementResult result = session.run("START i=node({idInput}) MATCH (i)-[:ORIGIN_OUTPUT]->(o:Output) RETURN o", params);
+		return result;
+	}
+
 }
