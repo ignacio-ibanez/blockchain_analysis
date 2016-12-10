@@ -4,11 +4,14 @@ import java.util.*;
 //javac -cp neo4j-java-driver-1.0.6.jar analysis_1.java
 //java -cp .:neo4j-java-driver-1.0.6.jar Execute
 
-// PRUEBA
+// 1ª PRUEBA
 //1 - START o=node(586) MATCH (o)-[r:TO]->(t:Transaction)-[r2:TO]->(b:Block) RETURN o,r,t,r2,b
 //2 - START o=node(586) MATCH (o)<-[r:ORIGIN_OUTPUT]-(i:Input)-[r2:TO]->(t:Transaction)-[r3:TO]->(b:Block) RETURN o,r,i,r2,t,b,r3
 //3 - START t=node(359882) MATCH (t)<-[r:TO]-(i:Input) RETURN t,r,i
 //4 - START t=node(359882) MATCH (t)<-[r:TO]-(o:Output) RETURN t,r,o
+
+// 2ª PRUEBA
+//1 - ID(t):
 
 class Execute {
 
@@ -237,6 +240,7 @@ class BlockNodes{
 				return;
 			}else{
 				// Seguimiento
+				System.out.println("Entra aqui porque hay varios outs y 1 input");
 				for(int i=0; i<numberOutputs; i++){
 					if(followOutput(idsOutputs.get(i), session, 10)){
 						addToNodes(this.nodes.size(), outputs.get(i));
@@ -247,7 +251,6 @@ class BlockNodes{
 		}else{
 			if(numberOutputs == 1){
 				// Abandonar este camino
-				System.out.println("Entra aqui porque hay un out y tres input");
 				return;
 			}else if(numberOutputs == 2){
 				// Buscar combinaciones
@@ -322,7 +325,7 @@ class BlockNodes{
 	private String getAddress(Map<String, Object> output){
 		double scriptLengthD = Double.parseDouble(output.get("scriptLength").toString());
 		int scriptLength = (int) scriptLengthD;
-		String script = output.get("script").toString();
+		String script = output.get("lockingScript").toString();
 		// pensar como tratar si en el mismo seguimiento se ven dos tipos diferentes de addresses
 		switch (scriptLength){
 			case 25:
