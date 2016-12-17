@@ -16,7 +16,11 @@ import common.*;
 //4 - START t=node(359882) MATCH (t)<-[r:TO]-(o:Output) RETURN t,r,o
 
 // 2ª PRUEBA
-//1 - ID(t):
+// ID(t): 408 -> Transaccion con 2 outputs y 1 input
+// ID(input): 409 -> Input de la anterior transaccion
+// ID(t): 360 -> Transaccion origen
+// ID(b): 356, b.timeStamp=496ab951 -> Bloque origen
+//1 - 
 
 class Execute {
 
@@ -30,8 +34,7 @@ class Execute {
 
 		Map<String, Object> originBlockNode = new HashMap<String, Object>();
 
-		//String timeStamp = "49696ef7";
-		String timeStamp = "496aee56";
+		String timeStamp = "496ab951";
 		int scope = 1;
 		BlockNodes originBlock = new BlockNodes();
 		originBlockNode = originBlock.getOriginNodes(timeStamp, session).getNodes().get(0);

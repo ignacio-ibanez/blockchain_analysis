@@ -55,20 +55,6 @@ public class BlockNodes{
 		double idOutd = record.get("ID(o)").asDouble();
 		int idOut = (int) idOutd;
 		addToIds("idOut", idOut);
-
-		//StatementResult result = session.run("OPTIONAL MATCH (t:Transaction)<-[:TO]-(o:Output) WHERE ID(t)={idTx} RETURN o,ID(o) LIMIT 1",
-		//					params);
-		//result = session.run("OPTIONAL MATCH (t:Transaction) WHERE id(t)={idTx} RETURN t LIMIT 1", params);
-		/*result = session.run("START t=node({idTx}) MATCH (t)<-[:TO]-(o:Output) RETURN o,ID(o) LIMIT 1", params);
-		
-		double idOutd;
-		if(result.hasNext()){
-			record = result.next();
-			addToNodes(2, record.get("o").asMap());
-			idOutd = record.get("ID(o)").asDouble();
-			int idOut = (int) idOutd;
-			addToIds("idOut", idOut);
-		}*/
 		
 		return this;
 	}

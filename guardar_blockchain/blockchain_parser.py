@@ -395,6 +395,8 @@ def getBlockContent(block):
 					hashTransaction=transactions[iTx].hashTransaction)
 		tx.create(transactionNode)
 
+		inputsWithoutOrigin = []
+		inputsNodesWithoutOrigin = []
 		for inputObj in transactionsInputs[iTx]:
 			inputNode = Node("Input", indexPreviousTxout=inputObj.indexPreviousTxout, scriptLength=inputObj.scriptLength,
 					script=inputObj.script, sequenceNumber=inputObj.sequenceNumber,
@@ -405,12 +407,16 @@ def getBlockContent(block):
 			# Busco el nodo output que hace refencia al origen del input
 			# --------------------------------------------------
 			if(transactions[iTx].inputCount > 1):
-				previousOutput = blockchain_db.data("OPTIONAL MATCH (t:Transaction {hashTransaction: {hashPreviousTransaction}}) -- (out:Output) WHERE out.indexTxOut={indexPreviousTxout} RETURN out", 
+				previousOutput = blockchain_db.data("OPTIONAL MATCH (t:Transaction {hashTransaction: {hashPreviousTransaction}})<-[:TO]-(out:Output) WHERE out.indexTxOut={indexPreviousTxout} RETURN out", 
 							hashPreviousTransaction=inputObj.hashPreviousTransaction, 
 							indexPreviousTxout=inputObj.indexPreviousTxout)
 				previousOutputNode = previousOutput[0]['out']
 				if (previousOutputNode != None):
 					tx.create(Relationship(inputNode,'ORIGIN_OUTPUT',previousOutputNode))
+				else:
+					print "Transaccion actual:",transactions[iTx].hashTransaction
+					inputsWithoutOrigin.append(inputObj)
+					inputsNodesWithoutOrigin.append(inputNode)
 
 		for outputObj in transactionsOutputs[iTx]:
 			outputNode = Node("Output", valueSatoshis=outputObj.valueSatoshis, scriptLength=outputObj.scriptLength,
@@ -424,6 +430,18 @@ def getBlockContent(block):
 		iTx += 1
 
 	tx.commit()
+
+	# Ahora se intentan relacionar los nodos input a los que no se ha encontrado origen porque esta en el mismo bloque
+	for k in xrange(len(inputsWithoutOrigin)):
+		previousOutput = blockchain_db.data("OPTIONAL MATCH (t:Transaction {hashTransaction: {hashPreviousTransaction}})<-[:TO]-(out:Output) WHERE out.indexTxOut={indexPreviousTxout} RETURN out", 
+					hashPreviousTransaction=inputsWithoutOrigin[k].hashPreviousTransaction, 
+					indexPreviousTxout=inputsWithoutOrigin[k].indexPreviousTxout)
+		previousOutputNode = previousOutput[0]['out']
+		if (previousOutputNode != None):
+			originOutRelation = Relationship(inputsNodesWithoutOrigin[k],'ORIGIN_OUTPUT',previousOutputNode)
+			blockchain_db.create(originOutRelation)
+		else:
+			print "Se sigue sin guardar"
 
 	# ----------------------------------------------------------------
 	# Buscamos el bloque anterior para crear la relación entre bloques
