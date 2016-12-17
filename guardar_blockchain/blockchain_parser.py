@@ -351,7 +351,7 @@ def getBlockContent(block):
 			lockingScript = block[indexFirstOutput+indexesFromFirstOutput:indexFirstOutput+indexesFromFirstOutput+scriptLength*2]
 			indexesFromFirstOutput += scriptLength*2
 
-			indexOrderOut = ''.join(['0']*(8-len(str(hex(outputsSaved))[2:]))) + str(hex(outputsSaved))[2:]
+			indexOrderOut = ''.join((''.join(['0']*(8-len(str(hex(outputsSaved))[2:]))),str(hex(outputsSaved))[2:]))
 
 			outputs.append(Output(valueSatoshis,scriptLength,lockingScript,indexOrderOut))
 			outputsSaved += 1
