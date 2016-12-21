@@ -119,7 +119,6 @@ def storeNodes(newBlockToSave, transactions, inputs, outputs):
 		prevBlockRelation = Relationship(newBlockNode,'PREVIOUS_BLOCK',previousChainBlock)
 		blockchain_db.create(prevBlockRelation)
 
-
 def getBlock(blockIndex):
 	urlBlockToSave = ''.join([urlBlock,str(blockIndex)])
 	print urlBlockToSave

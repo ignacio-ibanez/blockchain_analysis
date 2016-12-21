@@ -8,16 +8,14 @@ import py2neo
 from py2neo import Graph, Node, Relationship
 
 
-class Block(object):
-
-	# ogm.Label('Bloque') ----------------- Hay que añadirlo al crear el nodo             
-
-	def __init__(self,magicID,blockSize,blockHeader,transactionsCount,hashHeader,timeStamp,version):
+class Block(object):       
+	def __init__(self,magicID,blockSize,blockHeader,transactionsCount,hashHeader,hashHeaderReduced,timeStamp,version):
 		self.magicID = magicID
 		self.blockSize = blockSize
 		self.blockHeader = blockHeader
 		self.transactionsCount = transactionsCount
 		self.hashHeader = hashHeader
+		self.hashHeaderReduced = hashHeaderReduced
 		self.timeStamp = timeStamp
 		self.version = version
 
@@ -34,15 +32,13 @@ class Header(object):
 
 
 class Transaction(object):
-
-	# ogm.Label('Transacción') ----------------- Hay que añadirlo al crear el nodo
-
 	def __init__(self,transactionVersion,inputCount,outputCount,lockTime,hashTransaction):
 		self.transactionVersion = transactionVersion
 		self.inputCount = inputCount
 		self.outputCount = outputCount
 		self.lockTime = lockTime
 		self.hashTransaction = hashTransaction
+		self.hashTransactionReduced = hashTransactionReduced
 
 
 class Input(object):
@@ -253,13 +249,14 @@ def getBlockContent(block):
 	headerBlockHex = block[16:176].decode('hex')
 	hashHeader = hashlib.sha256(hashlib.sha256(headerBlockHex).digest()).digest().encode('hex_codec')
 	hashHeader = endianness(hashHeader)
+	hashHeaderReduced = hashHeader[59::]
 
 
 	# CONTADOR DE TRANSACCIONES
 	variableLenghtTransactions = getVariableLength(block[176:194])
 	transactionsCount = int(endianness(block[176:176+variableLenghtTransactions*2]),16)
 	
-	newBlockToSave = Block(magicID,blockSize,blockHeader,transactionsCount,hashHeader,timeStamp,version)
+	newBlockToSave = Block(magicID,blockSize,blockHeader,transactionsCount,hashHeader,hashHeaderReduced,timeStamp,version)
 	
 	# TRANSACCIONES
 	indexBeginTransaction = 176+variableLenghtTransactions*2 
@@ -289,10 +286,11 @@ def getBlockContent(block):
 			variableLenghtTxinScript = getVariableLength(block[indexFirstInput+indexesFromFirstInput:indexFirstInput+indexesFromFirstInput+18])
 			if(variableLenghtTxinScript == None):
 				print blocksRead
-				tx = blockchain_db.begin()
+				tx = blockchain_db.begin() # FALTA CREAR LA RELACION CON EL BLOQUE ANTERIOR
 				newBlockNode = Node("Block", magicId=newBlockToSave.magicID, blockSize=newBlockToSave.blockSize, 
 					blockHeader=newBlockToSave.blockHeader, transactionsCount=newBlockToSave.transactionsCount, 
-					hashHeader=newBlockToSave.hashHeader, timeStamp=newBlockToSave.timeStamp, version=newBlockToSave.version)
+					hashHeader=newBlockToSave.hashHeader, hashHeaderReduced=newBlockToSave.hashHeaderReduced,
+					timeStamp=newBlockToSave.timeStamp, version=newBlockToSave.version)
 				tx.create(newBlockNode)
 				tx.commit()
 				return
@@ -304,19 +302,6 @@ def getBlockContent(block):
 
 			sequenceNumber = endianness(block[indexFirstInput+indexesFromFirstInput:indexFirstInput+indexesFromFirstInput+8])
 			indexesFromFirstInput += 8
-
-			#if(hashPreviousTransaction != ''.join([str(0)]*64)):	
-				#  FUNCIONANDO LO DE ABAJO
-				#print 'El output correspondiente al indice es', indexPreviousTxout, ':'
-				#previousOutput = blockchain_db.data("OPTIONAL MATCH (t:Transaction {hashTransaction: {hashPreviousTransaction}}) -- (out:Output {indexTxOut: {indexPreviousTxout}}) RETURN out, ID(out)", 
-				#							hashPreviousTransaction=hashPreviousTransaction, indexPreviousTxout=indexPreviousTxout)
-				
-				#previousOutput = blockchain_db.data("OPTIONAL MATCH (t:Transaction {hashTransaction: {hashPreviousTransaction}}) -- (out:Output) WHERE out.indexTxOut={indexPreviousTxout} RETURN out", 
-				#							hashPreviousTransaction=hashPreviousTransaction, indexPreviousTxout=indexPreviousTxout)
-
-				#print previousOutput
-				#previousOutputNode = previousOutput[0]['out']
-				#idPreviousOutputNode = previousOutput[0]['ID(out)']
 
 			inputs.append(Input(indexPreviousTxout,scriptLength,script,sequenceNumber,hashPreviousTransaction))
 			inputsSaved += 1 
@@ -339,7 +324,8 @@ def getBlockContent(block):
 				tx = blockchain_db.begin()
 				newBlockNode = Node("Block", magicId=newBlockToSave.magicID, blockSize=newBlockToSave.blockSize, 
 					blockHeader=newBlockToSave.blockHeader, transactionsCount=newBlockToSave.transactionsCount, 
-					hashHeader=newBlockToSave.hashHeader, timeStamp=newBlockToSave.timeStamp, version=newBlockToSave.version)
+					hashHeader=newBlockToSave.hashHeader, hashHeaderReduced=newBlockToSave.hashHeaderReduced,
+					timeStamp=newBlockToSave.timeStamp, version=newBlockToSave.version)
 				tx.create(newBlockNode)
 				tx.commit()
 				return
@@ -361,11 +347,12 @@ def getBlockContent(block):
 
 		transactionToHash = block[indexBeginTransaction:indexFirstOutput+indexesFromFirstOutput+8].decode('hex')
 		hashTransaction = hashlib.sha256(hashlib.sha256(transactionToHash).digest()).digest().encode('hex_codec')
-		hashTransaction = endianness(hashTransaction) 
+		hashTransaction = endianness(hashTransaction)
+		hashTransactionReduced = hashTransaction[57::]
 
 		indexBeginTransaction = indexFirstOutput+indexesFromFirstOutput+8
 
-		transactionObject = Transaction(transactionVersion,inputCount,outputCount,lockTime,hashTransaction) 
+		transactionObject = Transaction(transactionVersion,inputCount,outputCount,lockTime,hashTransaction,hashTransactionReduced) 
 		transactions.append(transactionObject)
 
 		transactionsInputs.append(inputs)
@@ -381,7 +368,8 @@ def getBlockContent(block):
 
 	newBlockNode = Node("Block", magicId=newBlockToSave.magicID, blockSize=newBlockToSave.blockSize, 
 					blockHeader=newBlockToSave.blockHeader, transactionsCount=newBlockToSave.transactionsCount, 
-					hashHeader=newBlockToSave.hashHeader, timeStamp=newBlockToSave.timeStamp, version=newBlockToSave.version)
+					hashHeader=newBlockToSave.hashHeader, hashHeaderReduced=newBlockToSave.hashHeaderReduced,
+					timeStamp=newBlockToSave.timeStamp, version=newBlockToSave.version)
 	tx.create(newBlockNode)
 
 	lastSixBlocks.append(newBlockNode)
@@ -391,8 +379,8 @@ def getBlockContent(block):
 	while(transactionsSavedNeo4j < transactionsCount):
 		transactionNode = Node("Transaction", transactionVersion=transactions[iTx].transactionVersion, 
 					inputCount=transactions[iTx].inputCount, outputCount=transactions[iTx].outputCount, 
-					lockTime=transactions[iTx].lockTime,
-					hashTransaction=transactions[iTx].hashTransaction)
+					lockTime=transactions[iTx].lockTime, hashTransaction=transactions[iTx].hashTransaction,
+					hashTransactionReduced=transactions[iTx].hashTransactionReduced)
 		tx.create(transactionNode)
 
 		inputsWithoutOrigin = []
@@ -407,8 +395,8 @@ def getBlockContent(block):
 			# Busco el nodo output que hace refencia al origen del input
 			# --------------------------------------------------
 			if(transactions[iTx].inputCount > 1):
-				previousOutput = blockchain_db.data("OPTIONAL MATCH (t:Transaction {hashTransaction: {hashPreviousTransaction}})<-[:TO]-(out:Output) WHERE out.indexTxOut={indexPreviousTxout} RETURN out", 
-							hashPreviousTransaction=inputObj.hashPreviousTransaction, 
+				previousOutput = blockchain_db.data("OPTIONAL MATCH (t:Transaction {hashTransactionReduced: {hashPreviousTransaction}})<-[:TO]-(out:Output) WHERE out.indexTxOut={indexPreviousTxout} RETURN out", 
+							hashPreviousTransaction=inputObj.hashPreviousTransaction[57::], 
 							indexPreviousTxout=inputObj.indexPreviousTxout)
 				previousOutputNode = previousOutput[0]['out']
 				if (previousOutputNode != None):
@@ -433,8 +421,8 @@ def getBlockContent(block):
 
 	# Ahora se intentan relacionar los nodos input a los que no se ha encontrado origen porque esta en el mismo bloque
 	for k in xrange(len(inputsWithoutOrigin)):
-		previousOutput = blockchain_db.data("OPTIONAL MATCH (t:Transaction {hashTransaction: {hashPreviousTransaction}})<-[:TO]-(out:Output) WHERE out.indexTxOut={indexPreviousTxout} RETURN out", 
-					hashPreviousTransaction=inputsWithoutOrigin[k].hashPreviousTransaction, 
+		previousOutput = blockchain_db.data("OPTIONAL MATCH (t:Transaction {hashTransactionReduced: {hashPreviousTransaction}})<-[:TO]-(out:Output) WHERE out.indexTxOut={indexPreviousTxout} RETURN out", 
+					hashPreviousTransaction=inputsWithoutOrigin[k].hashPreviousTransaction[57::], 
 					indexPreviousTxout=inputsWithoutOrigin[k].indexPreviousTxout)
 		previousOutputNode = previousOutput[0]['out']
 		if (previousOutputNode != None):
@@ -451,103 +439,21 @@ def getBlockContent(block):
 		# Bloque anterior
 		if(len(lastSixBlocks)>0):
 			for block in lastSixBlocks[::-1]:
-				if(block['hashHeader'] == previousBlockHash):
+				if(block['hashHeaderReduced'] is previousBlockHash[59::]):
 					previousChainBlock = block
 					break
 			if(previousChainBlock == None): 
-				previousChainBlock = blockchain_db.find_one('Block', property_key='hashHeader', property_value=previousBlockHash)
+				previousChainBlock = blockchain_db.find_one('Block', 
+					property_key='hashHeaderReduced', property_value=previousBlockHash[59::])
 		else:
-			previousChainBlock = blockchain_db.find_one('Block', property_key='hashHeader', property_value=previousBlockHash)
+			previousChainBlock = blockchain_db.find_one('Block', 
+				property_key='hashHeaderReduced', property_value=previousBlockHash[59::])
 
 		if(previousChainBlock != None):
 			prevBlockRelation = Relationship(newBlockNode,'PREVIOUS_BLOCK',previousChainBlock)
 			blockchain_db.create(prevBlockRelation)
 		if(len(lastSixBlocks)==6):
 			lastSixBlocks.remove(lastSixBlocks[0])
-
-
-	#if(previousBlockHash != ''.join(['0']*64)):
-	#	previousChainBlock = blockchain_db.find_one('Block', property_key='hashHeader', property_value=previousBlockHash)
-		#previousChainBlock = blockchain_db.data("OPTIONAL MATCH (b:Block) WHERE b.hashHeader={previousBlockHash} RETURN b", previousBlockHash = previousBlockHash)
-		#"""if(previousChainBlock[0]['b'] != None):			
-		#							newBlockToSave.prevBlock.add(previousChainBlock[0]['b'])
-		#							print previousChainBlock[0]
-		#							print previousChainBlock[0]['b']['blockHeader']"""
-	
-
-		#actualBlock = blockchain_db.find_one('Block', property_key='hashHeader', property_value=hashHeader)
-		#prevBlockRelation = py2neo.Relationship(actualBlock,'PREVIOUS_BLOCK',previousChainBlock)
-		#blockchain_db.create(prevBlockRelation)
-
-	#	nodesForRelations = blockchain_db.data("OPTIONAL MATCH (b:Block {hashHeader:{hashHeader}}) -- (t:Transaction) -- (in:Input) RETURN b,in", 
-	#										hashHeader=hashHeader)
-	#	actualBlock = nodesForRelations[0]['b']
-	#	inputsActualBlock = nodesForRelations[0]['in']
-	#	if(previousChainBlock != None):
-	#		prevBlockRelation = Relationship(actualBlock,'PREVIOUS_BLOCK',previousChainBlock)
-	#		blockchain_db.create(prevBlockRelation)
-
-		# Lo de inmediatamente abajo es una prueba para borrar
-		#pruebaBloquesDevueltos = blockchain_db.data("OPTIONAL MATCH (b:Block {hashHeader:{hashHeader}}) -- (bRel:Block) RETURN bRel",
-		#						hashHeader=previousBlockHash)
-		#print pruebaBloquesDevueltos
-
-		#if()
-		#for inputToRelate in inputsActualBlock:
-			#print inputToRelate
-			#hashPreviousTransaction = inputToRelate.hashPreviousTransaction
-			#indexPreviousTxout = inputToRelate.indexPreviousTxout
-			#previousOutput = blockchain_db.data("OPTIONAL MATCH (t:Transaction {hashTransaction: {hashPreviousTransaction}}) -- (out:Output {indexTxOut: {indexPreviousTxout}}) RETURN out", 
-			#								hashPreviousTransaction=hashPreviousTransaction, indexPreviousTxout=indexPreviousTxout)
-			#previousOutputRelation = py2neo.Relationship(inputToRelate,'ORIGIN_OUTPUT',previousOutput)
-			#blockchain_db.create(previousOutputRelation)
-
-
-
-
-
-"""
-	if(blockInPack > 0):
-		isOrphan = True
-		for block in blockPack:
-			if(block.hashHeader == hashHeader):
-				newBlockToSave.prevBlock.add(block)
-				blockPack.append(newBlockToSave)
-				blockInPack += 1
-				isOrphan = False
-				break
-		if(isOrphan):
-			# GUARDAR SIN TRANSACCION
-			blockOrphan += 1
-			blockchain_db.create(newBlockToSave)
-			if(previousChainBlock != None):
-				actualBlock = blockchain_db.find_one('Block', property_key='hashHeader', property_value=hashHeader)
-				prevBlockRelation = py2neo.Relationship(actualBlock,'PREVIOUS_BLOCK',previousChainBlock)
-				blockchain_db.create(prevBlockRelation)
-			#if(blockOrphan >= 5):  ------------------------ FALTA COMPLETAR LA PARTE DE LIMPIAR TX CON UN ROLLBACK
-
-	else:
-		blockPack.append(newBlockToSave)
-		blockInPack += 1
-
-	if(blockInPack >= 20):
-		# GUARDAR TODO
-		hashFirstBlockPack = blockPack[0].hashHeader
-		tx = blockchain_db.begin()
-		for block in blockPack:
-			tx.create(block)
-		tx.commit()
-		# Creo la relación entre el ultimo bloque del pack anterior y el primero de este
-		hashPrev = endianness(blockPack[0].blockHeader[8:72])
-		if (hashPrev != ''.join(['0']*64)):
-			previousChainBlockPack = blockchain_db.find_one('Block', property_key='hashHeader', property_value=hashPrev)
-			actualBlockPack = blockchain_db.find_one('Block', property_key='hashHeader', property_value=hashFirstBlockPack)
-			prevBlockRelationPack = py2neo.Relationship(actualBlockPack,'PREVIOUS_BLOCK',previousChainBlockPack)
-			blockchain_db.create(prevBlockRelationPack)
-		blockPack = []
-		blockInPack = 0	
-
-"""
 	
 
 def getVariableLength(field):
