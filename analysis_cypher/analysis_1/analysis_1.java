@@ -29,9 +29,11 @@ class Execute {
 		Driver driver = GraphDatabase.driver( "bolt://localhost:7687", AuthTokens.basic( "neo4j", "123456" ) );
 		Session session = driver.session();
 
+		// Bloques analizados de los que se extrae luego la información
 		List<BlockNodes> blocksAnalysed = new ArrayList<BlockNodes>();
+		// Nodos del bloque origen
 		List<Map<String, String>> origin = new ArrayList<Map<String, String>>();
-
+		// Nodo Block del bloque origen
 		Map<String, Object> originBlockNode = new HashMap<String, Object>();
 
 		String timeStamp = "496ab951";

@@ -72,7 +72,7 @@ flag = threading.Event()
 
 blockchain_db = Graph("http://localhost:7474/db/data/", user="neo4j", password="123456")
 blockchain_db.run("CREATE INDEX ON :Block(hashHeaderReduced)")
-blockchain_db.run("CREATE INDEX ON :Transactions(hashTransactionReduced)")
+blockchain_db.run("CREATE INDEX ON :Transaction(hashTransactionReduced)")
 #blockchain_db.schema.create_index(Block,hashHeaderReduced)
 #blockchain_db.schema.create_index(Transaction,hashTransactionReduced)
 
@@ -279,7 +279,7 @@ def getBlockContent(block):
 
 			variableLenghtTxinScript = getVariableLength(block[indexFirstInput+indexesFromFirstInput:indexFirstInput+indexesFromFirstInput+18])
 			if(variableLenghtTxinScript == None):
-				print blocksRead
+				print blocksRead, datetime.datetime.now()
 				tx = blockchain_db.begin() # FALTA CREAR LA RELACION CON EL BLOQUE ANTERIOR
 				newBlockNode = Node("Block", magicId=newBlockToSave.magicID, blockSize=newBlockToSave.blockSize, 
 					blockHeader=newBlockToSave.blockHeader, transactionsCount=newBlockToSave.transactionsCount, 
@@ -314,7 +314,7 @@ def getBlockContent(block):
 
 			variableLengthOutputScript = getVariableLength(block[indexFirstOutput+indexesFromFirstOutput:indexFirstOutput+indexesFromFirstOutput+18])
 			if(variableLengthOutputScript == None):
-				print blocksRead
+				print blocksRead, datetime.datetime.now()
 				tx = blockchain_db.begin()
 				newBlockNode = Node("Block", magicId=newBlockToSave.magicID, blockSize=newBlockToSave.blockSize, 
 					blockHeader=newBlockToSave.blockHeader, transactionsCount=newBlockToSave.transactionsCount, 
@@ -421,8 +421,6 @@ def getBlockContent(block):
 		if (previousOutputNode != None):
 			originOutRelation = Relationship(inputsNodesWithoutOrigin[k],'ORIGIN_OUTPUT',previousOutputNode)
 			blockchain_db.create(originOutRelation)
-		else:
-			print "Se sigue sin guardar"
 
 	# ----------------------------------------------------------------
 	# Buscamos el bloque anterior para crear la relación entre bloques
@@ -489,6 +487,8 @@ def saveBlockchain():
 			getBlockContent(blockChainList[0])
 			blockChainList.remove(blockChainList[0])
 			blocksRead += 1
+			if((blocksRead%10000)==0):
+				print 'nuevos 10.000:', blocksRead, datetime.datetime.now()
 
 	timeFinish = datetime.datetime.now()
 	print 'El programa ha tardado:',(timeFinish-timeStart)
