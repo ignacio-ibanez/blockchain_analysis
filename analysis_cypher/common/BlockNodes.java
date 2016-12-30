@@ -21,6 +21,7 @@ public class BlockNodes{
 
 		String queryCypher = "OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction)<-[:TO]-(o:Output) WHERE b.timeStamp={timeStamp} RETURN b,t,o,ID(t),ID(o) LIMIT 1";
 		StatementResult result = session.run(queryCypher, params);
+		// Busca el bloque que tenga el timestamp más parecido al introducido por el usuario
 		int timeStampModUpInt;
 		String timeStampModUp = timeStamp;
 		int timeStampModDownInt;
@@ -64,6 +65,8 @@ public class BlockNodes{
 		Record record;
 		CypherQuery query = new CypherQuery();
 
+		// Obtiene y almacena el nodo Block y el nodo Transaction del bloque siguiente 
+		// utilizando el la relación ORIGIN_OUTPUT
 		int idTx;
 		result = query.getNextBlockFromOutput(idOutStart,session);
 		if(result.hasNext()){
@@ -76,6 +79,8 @@ public class BlockNodes{
 			return null;
 		}
 
+		// Obtiene y almacena los nodos Input de la transacción obtenida en la sentencia 
+		// anterior. De los nodos saca y almacena las direcciones
 		result = query.getInputsOfTx(idTx,session);
 		int indexMap = 2;
 		while(result.hasNext()){
@@ -85,14 +90,18 @@ public class BlockNodes{
 			int idIn = (int) idInd;
 			addToIds("idIn"+(indexMap-1), idIn);
 			try{
-				addToAddressIdInput(idIn,getAddress(getOriginOutput(idIn,session)));
+				addToAddressIdInput(idIn,getAddress(query.getOriginOutput(idIn,session).get("o").asMap()));
 			}catch(Exception e){}
 			indexMap++;
 		}
 
 		System.out.println("El numero de addresses guardadas es: " + addressIdInput.size());
 
+		// Obtiene los outputs de la transacción.
 		result = query.getOutputsOfTx(idTx,session);
+		// Almacena los outputs obtenidos. No vale almacenar todos, ya que solo interesa el output
+		// que representa el cambio en la transacción, ya que es el que corresponde con una
+		// dirección del usuario. Todo esto se hace en storeChangeOutput
 		storeChangeOutput(result,session);
 
 		// LA PARTE DE ABAJO, EN PRINCIPIO SE HACE CON EL METODO storeChangeOutput
@@ -123,6 +132,7 @@ public class BlockNodes{
 		List<Map<String, Object>> outputs = new ArrayList<Map<String, Object>>();
 		Map<Integer, Integer> idsOutputs = new HashMap<Integer, Integer>();
 		
+		// Almacena en la lista outputs los nodos Output pasados en la variable result
 		Record record;
 		int indexOutput = 0;
 		while(result.hasNext()){
@@ -141,10 +151,17 @@ public class BlockNodes{
 		System.out.println("El número de inputs en storeChange es: " + numberInputs);
 		if(numberInputs==1){
 			if(numberOutputs == 1){
-				// Abandonar este camino
+				// Abandonar este camino -----  Pensar si puede ser un mecanismo de Bitcoin
+				// Solo hay un output, luego el pago es exacto y no hay cambio
 				return;
 			}else{
-				// Seguimiento
+				// Seguimiento --- Pensar si es mejor hacerlo cuando haya almacenadas un número 
+				// mayor de direcciones del usuario
+				//
+				// No hay forma de conocer cual es el cambio, así que se debe realizar
+				// un seguimiento de todos los outputs hasta que se consuma un alcance,
+				// "iterationFollow", o hasta que en alguno de ellos se detecte una 
+				// conexión con otra de las direcciones almacenadas del usuario
 				System.out.println("Entra aqui porque hay varios outs y 1 input");
 				for(int i=0; i<numberOutputs; i++){
 					if(followOutput(idsOutputs.get(i), session, 10)){
@@ -155,10 +172,13 @@ public class BlockNodes{
 			}
 		}else{
 			if(numberOutputs == 1){
-				// Abandonar este camino
+				// Abandonar este camino -----  Pensar si puede ser un mecanismo de Bitcoin
+				// Solo hay un output, luego el pago es exacto y no hay cambio
 				return;
 			}else if(numberOutputs == 2){
 				// Buscar combinaciones
+				// Al ser x inputs y 2 outputs, se pueden buscar combinaciones entre
+				// valores de satoshis para encontrar el cambio
 				int changeOutputIndex = combinationXIn2Out(outputs,session);
 				if(changeOutputIndex == -1){
 					for(int i=0; i<numberOutputs; i++){
@@ -174,7 +194,13 @@ public class BlockNodes{
 				if(numberOutputs > 6){  // PENSAR ESTE VALOR (PARA CONSIDERAR POOLS)
 					return;
 				}else{
-					// Seguimiento
+					// Seguimiento --- Pensar si es mejor hacerlo cuando haya almacenadas un número 
+					// mayor de direcciones del usuario
+					//
+					// No hay forma de conocer cual es el cambio, así que se debe realizar
+					// un seguimiento de todos los outputs hasta que se consuma un alcance,
+					// "iterationFollow", o hasta que en alguno de ellos se detecte una 
+					// conexión con otra de las direcciones almacenadas del usuario
 					for(int i=0; i<numberOutputs; i++){
 						if(followOutput(idsOutputs.get(i), session, 10)){
 							addToNodes(this.nodes.size(), outputs.get(i));
@@ -198,6 +224,7 @@ public class BlockNodes{
 		CypherQuery query = new CypherQuery();
 		Record record;
 
+		// Obtiene el bloque siguiente partiendo del idOutput
 		int idTx;
 		StatementResult result = query.getNextBlockFromOutput(idOutput,session);
 		if(result.hasNext()){
@@ -208,6 +235,14 @@ public class BlockNodes{
 			return false;
 		}
 
+		// Obtiene los nodos Output de la transacción obtenida arriba.
+		// Obtiene de cada Output la dirección y comprueba si se corresponde con
+		// alguna de las ya almacenadas del usuario. Si es así, esa dirección
+		// tambien es del usuario. 
+		// POR IMPLEMENTAR:
+		// 1. Esperar a que haya mas direcciones
+		// 2. Comprobar con el resto de inputs de la transacción del bloque siguiente,
+		//		no solo con la dirección del input directo
 		result = query.getOutputsOfTx(idTx,session);
 		int idOut = -1;
 		while(result.hasNext()){
