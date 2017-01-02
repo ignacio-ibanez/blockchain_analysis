@@ -7,6 +7,46 @@ import org.neo4j.driver.v1.*;
 
 public class CypherQuery{
 
+	public StatementResult getOriginBlockByTimeStamp(String timeStamp, Session session){
+		Map<String, Object> params = new HashMap<String, Object>();
+		params.put("timeStamp",timeStamp);
+		StatementResult result = session.run("OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction)<-[:TO]-(o:Output) WHERE b.timeStamp={timeStamp} RETURN b,t,o,ID(t),ID(o) LIMIT 1",
+					params);
+		return result;
+	}
+
+	public StatementResult getOriginBlockByAddress(String address, Session session){
+		Map<String, Object> params = new HashMap<String, Object>();
+		params.put("address",address);
+		StatementResult result = session.run("OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction)<-[:TO]-(o:Output) WHERE o.");
+		return result;
+	}
+
+	public StatementResult getOriginBlockByHashBlock(String hashHeader, Session session){
+		Map<String, Object> params = new HashMap<String, Object>();
+		params.put("hashHeader",hashHeader);
+		StatementResult result = session.run("OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction)<-[:TO]-(o:Output) WHERE b.hashHeader={hashHeader} RETURN b,t,o,ID(t),ID(o) LIMIT 1",
+					params);
+		return result;
+	}
+
+	public StatementResult getOriginBlockByTransaction(String hashTransaction, Session session){
+		Map<String, Object> params = new HashMap<String, Object>();
+		params.put("hashTransactionReduced",hashTransactionReduced);
+		StatementResult result = session.run("OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction)<-[:TO]-(o:Output) WHERE t.hashTransactionReduced={hashTransactionReduced} AND o.indexTxOutput="00000000" RETURN b,t,o,ID(t),ID(o) LIMIT 1",
+					params);
+		return result;
+	}
+
+	public StatementResult getOriginBlockByTransactionWithIndex(String hashTransaction, String indexOutput, Session session){
+		Map<String, Object> params = new HashMap<String, Object>();
+		params.put("hashTransactionReduced",hashTransactionReduced);
+		params.put("indexOutput",indexOutput);
+		StatementResult result = session.run("OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction)<-[:TO]-(o:Output) WHERE t.hashTransactionReduced={hashTransactionReduced} AND o.indexTxOutput={indexOutput} RETURN b,t,o,ID(t),ID(o) LIMIT 1",
+					params);
+		return result;
+	}
+
 	public StatementResult getNextBlockFromOutput(int idOut, Session session){
 		Map<String, Object> params = new HashMap<String, Object>();
 		params.put("idOut",idOut);

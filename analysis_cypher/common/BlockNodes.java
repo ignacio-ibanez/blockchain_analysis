@@ -12,15 +12,40 @@ public class BlockNodes{
 	// FALTA METER LAS DIRECCIONES EN EL MAP DE ABAJO
 	private Map<Integer, String> addressIdInput = new HashMap<Integer, String>();
 
-	public BlockNodes getOriginNodes(String timeStamp, Session session){
-		Map<String, Object> params = new HashMap<String, Object>();
+	public BlockNodes getOriginNodes(String mode, Map<String,String> param, Session session){
+		switch(mode){
+			case "date":
+			searchByTimeStamp(param,session);
+			return this;
 
+			case "address":
+			searchByAddress(param,session);
+			return this;
+
+			case "block":
+			searchByHashBlock(param,session);
+			return this;
+
+			case "transaction":
+			searchByTransaction(param,session);
+			return this;
+
+			case "transactionWithIndex":
+			searchByTransactionWithIndex(param,session);
+			return this;
+
+			case "transactionAllIndexes":
+			searchByTransactionAllIndexes(param,session);
+			return this;
+		}
+	}
+
+	public void searchByTimeStamp(Map<String,String> timeStampMap, Session session){
+		CypherQuery query = new CypherQuery();
 		Record record;
+		String timestamp = timeStampMap.get("timeStamp");
+		StatementResult result = query.getOriginBlockByTimeStamp(timestamp,session);
 
-		params.put("timeStamp", timeStamp);
-
-		String queryCypher = "OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction)<-[:TO]-(o:Output) WHERE b.timeStamp={timeStamp} RETURN b,t,o,ID(t),ID(o) LIMIT 1";
-		StatementResult result = session.run(queryCypher, params);
 		// Busca el bloque que tenga el timestamp más parecido al introducido por el usuario
 		int timeStampModUpInt;
 		String timeStampModUp = timeStamp;
@@ -32,19 +57,73 @@ public class BlockNodes{
 			if(up){
 				timeStampModUpInt = Integer.parseInt(timeStampModUp, 16) + 1;
 				timeStampModUp = Integer.toHexString(timeStampModUpInt);
-				params.replace("timeStamp", timeStampModUp);
+				result = query.getOriginBlockByTimeStamp(timeStampModUp,session);
 				up = false;
 			}else{
 				timeStampModDownInt = Integer.parseInt(timeStampModDown, 16) - 1;
 				timeStampModDown = Integer.toHexString(timeStampModDownInt);
-				params.replace("timeStamp", timeStampModDown);
+				result = query.getOriginBlockByTimeStamp(timeStampModDown,session);
 				up = true;
 			}
-			result = session.run(queryCypher, params);
 			record = result.next();
 		}
+		saveOriginNodes(record);
+	}
 
-		
+	public void searchByAddress(Map<String,String> addressMap, Session session){
+		CypherQuery query = new CypherQuery();
+		Record record;
+		StatementResult result = query.getOriginBlockByTimeStamp(timestamp,session);	
+	}
+
+	public void searchByHashBlock(Map<String,String> hashBlockMap, Session session){
+		CypherQuery query = new CypherQuery();
+		Record record;
+		String hashBlock = hashBlockMap.get("hashBlock");
+		StatementResult result = query.getOriginBlockByHashBlock(hashBlock,session);
+
+		if(result.hasNext()){
+			record = result.next();
+			saveOriginNodes(record);
+		}
+	}
+
+	public void searchByTransaction(Map<String,String> hashTransactionMap, Session session){
+		CypherQuery query = new CypherQuery();
+		Record record;
+		String hashTransaction = hashTransactionMap.get("hashTransaction");
+		StatementResult result = query.getOriginBlockByTransaction(hashTransaction,session);
+
+		if(result.hasNext()){
+			record = result.next();
+			saveOriginNodes(record);
+		}
+	}
+
+	public void searchByTransactionWithIndex(Map<String,String> hashTransactionMap, Session session){
+		CypherQuery query = new CypherQuery();
+		Record record;
+		String hashTransaction = hashTransactionMap.get("hashTransaction");
+		String indexOutput = hashTransactionMap.get("indexOutput");
+		StatementResult result = query.getOriginBlockByTransactionWithIndex(hashTransaction,indexOutput,session);
+
+		if(result.hasNext()){
+			record = result.next();
+			saveOriginNodes(record);
+		}
+	}
+
+	public void searchByTransactionAllIndexes(Map<String,String> hashTransactionMap, Session session){
+		CypherQuery query = new CypherQuery();
+		Record record;
+		String hashTransaction = hashTransactionMap.get("hashTransaction");
+
+		if(result.hasNext()){
+			// FALTA COMPLETAR
+		}
+	}
+
+	public void saveOriginNodes(Record record){
 		addToNodes(0,record.get("b").asMap());
 		addToNodes(1, record.get("t").asMap());
 		addToNodes(2, record.get("o").asMap());
@@ -56,8 +135,6 @@ public class BlockNodes{
 		double idOutd = record.get("ID(o)").asDouble();
 		int idOut = (int) idOutd;
 		addToIds("idOut", idOut);
-		
-		return this;
 	}
 
 	public BlockNodes getIterationBlock(int idOutStart , Session session){
@@ -182,14 +259,15 @@ public class BlockNodes{
 				int changeOutputIndex = combinationXIn2Out(outputs,session);
 				if(changeOutputIndex == -1){
 					for(int i=0; i<numberOutputs; i++){
-						if(followOutput(idsOutputs.get(i), session, 10)){
+						if(followOutput(idsOutputs.get(i), session, 3)){
 							addToNodes(this.nodes.size(), outputs.get(i));
 							addToIds("idOut", idsOutputs.get(i));
 						}
 					}
+				}else{
+					addToNodes(this.nodes.size(),outputs.get(changeOutputIndex));
+					addToIds("idOut", idsOutputs.get(changeOutputIndex));
 				}
-				addToNodes(this.nodes.size(),outputs.get(changeOutputIndex));
-				addToIds("idOut", idsOutputs.get(changeOutputIndex));
 			}else{
 				if(numberOutputs > 6){  // PENSAR ESTE VALOR (PARA CONSIDERAR POOLS)
 					return;
@@ -217,7 +295,7 @@ public class BlockNodes{
 		Map<String, Object> params = new HashMap<String, Object>();
 		Map<Integer, String> candidateAddressIdOutput = new HashMap<Integer, String>();
 
-		if(iterationFollow == 0 || idOutput == -1){
+		if(iterationFollow == 0){
 			return false;
 		}
 
@@ -235,27 +313,47 @@ public class BlockNodes{
 			return false;
 		}
 
-		// Obtiene los nodos Output de la transacción obtenida arriba.
-		// Obtiene de cada Output la dirección y comprueba si se corresponde con
+		// Obtiene los nodos Input de la transacción obtenida arriba.
+		// Obtiene de cada Input la dirección y comprueba si se corresponde con
 		// alguna de las ya almacenadas del usuario. Si es así, esa dirección
-		// tambien es del usuario. 
-		// POR IMPLEMENTAR:
-		// 1. Esperar a que haya mas direcciones
-		// 2. Comprobar con el resto de inputs de la transacción del bloque siguiente,
-		//		no solo con la dirección del input directo
-		result = query.getOutputsOfTx(idTx,session);
+		// tambien es del usuario, y por tanto, el output es el cambio. 
+		result = query.getInputsOfTx(idTx,session);
 		int idOut = -1;
 		while(result.hasNext()){
 			record = result.next();
+			double idInputd = record.get("ID(i)").asDouble();
+			idInput = (int) idInputd;
+			result = query.getOriginOutput(idInput,session);
+			if(result.hasNext()){
+				record = result.next();
+				String address = getAddress(record.get("o").asMap());
+				if(this.addressIdInput.values().contains(address)){
+					return true;
+				}
+			}
+		}
+
+		// Si de los inputs de esta transacción no se encuentran coincidencias,
+		// esto es, no hay ninguna direccion del usuario, se sigue buscando con los outputs
+		// de la misma transacción.
+		// Partiendo de los outputs, se inicia otra vez el proceso.
+		// ------ PENSAR SI CON LOS OUTPUTS YA NO PUEDE APLICARSE, PORQUE PUEDE
+		// ESTAR REALIZANDOSE UNA TRANSACCIÓN INVERSA DEL QUE RECIBIÓ AL QUE PAGÓ
+		result = query.getOutputsOfTx(idTx,session);
+		while(result.hasNext()){
+			record.next();
 			double idOutd = record.get("ID(o)").asDouble();
-			idOut = (int) idOutd;
+			int idOut = (int) idOutd;
 			String address = getAddress(record.get("o").asMap());
-			if(addressIdInput.values().contains(address)){
+			if(this.addressIdInput.values().contains(address)){
+				return true;
+			}
+			if(followOutput(idOut, session, iterationFollow-1)){
 				return true;
 			}
 		}
 
-		return followOutput(idOut, session, iterationFollow-1);
+		return false;
 	} 
 
 	private String getAddress(Map<String, Object> output){
@@ -330,9 +428,10 @@ public class BlockNodes{
 			int shatoshisInput = getSatoshis(this.ids.get("idIn"+(i+1)),session);
 			int valueSatoshis0 = Integer.parseInt(outputs.get(0).get("valueSatoshis").toString());
 			int valueSatoshis1 = Integer.parseInt(outputs.get(1).get("valueSatoshis").toString());
-			if((shatoshisInput>valueSatoshis0) && (shatoshisInput<valueSatoshis1)){
+			int transactionFee = getTransactionFee(valueSatoshis0+valueSatoshis1,session);
+			if((shatoshisInput>valueSatoshis0+transactionFee) && (shatoshisInput<valueSatoshis1)){
 				return 0;
-			}else if((shatoshisInput>valueSatoshis1) && (shatoshisInput<valueSatoshis0)){
+			}else if((shatoshisInput>valueSatoshis1+transactionFee) && (shatoshisInput<valueSatoshis0)){
 				return 1;
 			}else{
 				int satoshisCombination = 0;
@@ -342,12 +441,10 @@ public class BlockNodes{
 						satoshisCombination += getSatoshis(this.ids.get("idIn"+(j+1)),session);
 					}
 				}
-				if((satoshisCombination>valueSatoshis0) && (satoshisCombination<valueSatoshis1)){
+				if((satoshisCombination>valueSatoshis0+transactionFee) && (satoshisCombination<valueSatoshis1)){
 					return 0;
-				}else if((satoshisCombination<valueSatoshis0) && (satoshisCombination>valueSatoshis1)){
+				}else if((satoshisCombination<valueSatoshis0) && (satoshisCombination>valueSatoshis1+transactionFee)){
 					return 1;
-				}else{
-					return -1;
 				}
 			}
 		}

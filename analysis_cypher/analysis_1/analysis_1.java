@@ -35,11 +35,39 @@ class Execute {
 		List<Map<String, String>> origin = new ArrayList<Map<String, String>>();
 		// Nodo Block del bloque origen
 		Map<String, Object> originBlockNode = new HashMap<String, Object>();
+		// Mapa de parametros para obtener el bloque inicial
+		Map<String, String> initialParam = new HashMap<String, String>();
 
+		// Mode debe ser date, address, block, transaction, transactionWithIndex, transactionAllIndexes
+		String mode = "";
+		// Para probar buscando desde timeStamp
 		String timeStamp = "496ab951";
+		initialParam.put("timeStamp",timeStamp);
+		// ------------------------------------
+		// Para probar buscando desde direccion
+		// FALTA POR HACER
+		// ------------------------------------
+		// Para probar buscando desde hash de bloque
+		String hashHeader = "";
+		initialParam.put("hashBlock",hashHeader);
+		// ------------------------------------
+		// Para probar buscando desde transacción
+		String hashTransaction = "";
+		initialParam.put("hashTransaction",hashTransaction);
+		// ------------------------------------
+		// Para probar buscando desde transacción con indice output
+		String hashTransaction = "";
+		String indexOutput = "";
+		initialParam.put("hashTransaction",hashTransaction);
+		initialParam.put("indexOutput",indexOutput);
+		// ------------------------------------
+		// Para probar buscando desde transacción y flag para analizar todos los outputs
+		// Falta por hacer
+		// ------------------------------------
 		int scope = 1;
 		BlockNodes originBlock = new BlockNodes();
-		originBlockNode = originBlock.getOriginNodes(timeStamp, session).getNodes().get(0);
+		originBlock.getOriginNodes(mode,initialParam,session);
+		originBlockNode = originBlock.getNodes().get(0);
 		blocksAnalysed.add(0, originBlock);
 		/*System.out.println("El nodo origen ha sido guardado");
 		System.out.println("El hash del bloque origen es: " + originBlockNode.get("hashHeader"));
@@ -90,4 +118,6 @@ class Execute {
 		session.close();
 		driver.close();
 	}
+
+
 }
