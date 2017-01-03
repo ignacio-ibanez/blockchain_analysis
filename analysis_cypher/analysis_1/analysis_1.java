@@ -83,12 +83,17 @@ class Execute {
 		// PRUEBA
 		//int idOut = 446;    // ---- Contiene [:ORIGIN_OUTPUT]-(input)
 		//int idInnput = 359884
+		Map<Integer, String> addressIdInput = new HashMap<Integer, String>();
 		for(int i=1; i<=scope; i++){
-			BlockNodes nodesBlock = new BlockNodes();
+			BlockNodes nodesBlock = new BlockNodes(addressIdInput);
 			if(nodesBlock.getIterationBlock(idOut, session) == null){
 				break;
 			}else{
 				blocksAnalysed.add(i, nodesBlock);
+				while(nodesBlock.getAddresses().hasNext()){
+					Map.Entry pair = (Map.Entry)nodesBlock.getAddresses().next();
+					addressIdInput.put(pair.getKey(),pair.getValue());
+				}
 			}
 			/*int numberNodes = blocksAnalysed.get(i).getNodes().size();
 			System.out.println("Número de nodos: " + numberNodes);

@@ -12,6 +12,10 @@ public class BlockNodes{
 	// FALTA METER LAS DIRECCIONES EN EL MAP DE ABAJO
 	private Map<Integer, String> addressIdInput = new HashMap<Integer, String>();
 
+	public BlockNodes(Map<Integer, String> addressIdInput){
+		this.addressIdInput = addressIdInput;
+	}
+
 	public BlockNodes getOriginNodes(String mode, Map<String,String> param, Session session){
 		switch(mode){
 			case "date":
@@ -178,29 +182,10 @@ public class BlockNodes{
 		result = query.getOutputsOfTx(idTx,session);
 		// Almacena los outputs obtenidos. No vale almacenar todos, ya que solo interesa el output
 		// que representa el cambio en la transacción, ya que es el que corresponde con una
-		// dirección del usuario. Todo esto se hace en storeChangeOutput
+		// dirección del usuario. 
+		// Primero, no obstante, hay que comprobar si alguna de las direcciones de los outputs es del usuario
+		// Todo esto se hace en storeChangeOutput
 		storeChangeOutput(result,session);
-
-		// LA PARTE DE ABAJO, EN PRINCIPIO SE HACE CON EL METODO storeChangeOutput
-		/*
-		int indexOutHigher = 0; // index dentro de la lista donde se encuentra el output a devolver
-		int indexObjOuts = 0; 
-		double higherIndex = 0;  // index mas alto encontrado (el almacenado en hex)
-		List<Map<String, Object>> outputs = new ArrayList<Map<String, Object>>();
-		while(result.hasNext()){
-			record = result.next();
-			outputs.add(indexObjOuts, record.get("o").asMap());
-			int indexTxOutInt = Integer.parseInt(record.get("o").get("indexTxOut").asString(),16);
-			if(indexTxOutInt > higherIndex){
-				higherIndex = indexTxOutInt;
-				indexOutHigher = indexObjOuts;
-			}
-			outputs.add(indexObjOuts, record.get("o").asMap());
-			indexObjOuts++;
-		}
-		if(indexObjOuts > 1){
-			addToNodes(indexMap, outputs.get(indexOutHigher));
-		}*/
 
 		return this;
 	}
@@ -209,7 +194,8 @@ public class BlockNodes{
 		List<Map<String, Object>> outputs = new ArrayList<Map<String, Object>>();
 		Map<Integer, Integer> idsOutputs = new HashMap<Integer, Integer>();
 		
-		// Almacena en la lista outputs los nodos Output pasados en la variable result
+		// Almacena en la lista outputs los nodos Output pasados en la variable result y comprueba si alguno de ellos
+		// tiene de dirección alguna de las ya almacenadas.
 		Record record;
 		int indexOutput = 0;
 		while(result.hasNext()){
@@ -218,6 +204,12 @@ public class BlockNodes{
 			double idOutd = record.get("ID(o)").asDouble();
 			int idOut = (int) idOutd;
 			idsOutputs.put(indexOutput, idOut);
+			String address = getAddress(record.get("o").asMap());
+			if(addressIdInput.values().contains(address)){
+				addToNodes(this.nodes.size(), record.get("o").asMap());
+				addToIds("idOut", idOut);
+				return;
+			}
 			indexOutput++;
 		}
 
@@ -481,5 +473,9 @@ public class BlockNodes{
 
 	public Map<String, Integer> getIds(){
 		return this.ids;
+	}
+
+	public Map<Integer, String> getAddresses(){
+		return this.addressIdInput;
 	}
 }
