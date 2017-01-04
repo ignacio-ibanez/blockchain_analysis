@@ -9,139 +9,15 @@ import common.CypherQuery;
 public class BlockNodes{
 	private Map<String, Integer> ids = new HashMap<String, Integer>();
 	private List<Map<String, Object>> nodes = new ArrayList<Map<String, Object>>();
+	private Map<Integer, String> addressesUser;
 	// FALTA METER LAS DIRECCIONES EN EL MAP DE ABAJO
-	private Map<Integer, String> addressIdInput = new HashMap<Integer, String>();
+	private Map<Integer, String> addressIdInput = new HashMap<String, Integer>();
 
-	public BlockNodes(Map<Integer, String> addressIdInput){
-		this.addressIdInput = addressIdInput;
+	public BlockNodes(Map<Integer, String> addressesUser){
+		this.addressesUser = addressesUser;
 	}
 
-	public BlockNodes getOriginNodes(String mode, Map<String,String> param, Session session){
-		switch(mode){
-			case "date":
-			searchByTimeStamp(param,session);
-			return this;
-
-			case "address":
-			searchByAddress(param,session);
-			return this;
-
-			case "block":
-			searchByHashBlock(param,session);
-			return this;
-
-			case "transaction":
-			searchByTransaction(param,session);
-			return this;
-
-			case "transactionWithIndex":
-			searchByTransactionWithIndex(param,session);
-			return this;
-
-			case "transactionAllIndexes":
-			searchByTransactionAllIndexes(param,session);
-			return this;
-		}
-	}
-
-	public void searchByTimeStamp(Map<String,String> timeStampMap, Session session){
-		CypherQuery query = new CypherQuery();
-		Record record;
-		String timestamp = timeStampMap.get("timeStamp");
-		StatementResult result = query.getOriginBlockByTimeStamp(timestamp,session);
-
-		// Busca el bloque que tenga el timestamp más parecido al introducido por el usuario
-		int timeStampModUpInt;
-		String timeStampModUp = timeStamp;
-		int timeStampModDownInt;
-		String timeStampModDown = timeStamp; 
-		boolean up = true;
-		record = result.next();
-		while(record.get("b").toString() == "NULL"){
-			if(up){
-				timeStampModUpInt = Integer.parseInt(timeStampModUp, 16) + 1;
-				timeStampModUp = Integer.toHexString(timeStampModUpInt);
-				result = query.getOriginBlockByTimeStamp(timeStampModUp,session);
-				up = false;
-			}else{
-				timeStampModDownInt = Integer.parseInt(timeStampModDown, 16) - 1;
-				timeStampModDown = Integer.toHexString(timeStampModDownInt);
-				result = query.getOriginBlockByTimeStamp(timeStampModDown,session);
-				up = true;
-			}
-			record = result.next();
-		}
-		saveOriginNodes(record);
-	}
-
-	public void searchByAddress(Map<String,String> addressMap, Session session){
-		CypherQuery query = new CypherQuery();
-		Record record;
-		StatementResult result = query.getOriginBlockByTimeStamp(timestamp,session);	
-	}
-
-	public void searchByHashBlock(Map<String,String> hashBlockMap, Session session){
-		CypherQuery query = new CypherQuery();
-		Record record;
-		String hashBlock = hashBlockMap.get("hashBlock");
-		StatementResult result = query.getOriginBlockByHashBlock(hashBlock,session);
-
-		if(result.hasNext()){
-			record = result.next();
-			saveOriginNodes(record);
-		}
-	}
-
-	public void searchByTransaction(Map<String,String> hashTransactionMap, Session session){
-		CypherQuery query = new CypherQuery();
-		Record record;
-		String hashTransaction = hashTransactionMap.get("hashTransaction");
-		StatementResult result = query.getOriginBlockByTransaction(hashTransaction,session);
-
-		if(result.hasNext()){
-			record = result.next();
-			saveOriginNodes(record);
-		}
-	}
-
-	public void searchByTransactionWithIndex(Map<String,String> hashTransactionMap, Session session){
-		CypherQuery query = new CypherQuery();
-		Record record;
-		String hashTransaction = hashTransactionMap.get("hashTransaction");
-		String indexOutput = hashTransactionMap.get("indexOutput");
-		StatementResult result = query.getOriginBlockByTransactionWithIndex(hashTransaction,indexOutput,session);
-
-		if(result.hasNext()){
-			record = result.next();
-			saveOriginNodes(record);
-		}
-	}
-
-	public void searchByTransactionAllIndexes(Map<String,String> hashTransactionMap, Session session){
-		CypherQuery query = new CypherQuery();
-		Record record;
-		String hashTransaction = hashTransactionMap.get("hashTransaction");
-
-		if(result.hasNext()){
-			// FALTA COMPLETAR
-		}
-	}
-
-	public void saveOriginNodes(Record record){
-		addToNodes(0,record.get("b").asMap());
-		addToNodes(1, record.get("t").asMap());
-		addToNodes(2, record.get("o").asMap());
-
-		double idTxd = record.get("ID(t)").asDouble();
-		int idTx = (int) idTxd;
-		addToIds("idTx", idTx);
-
-		double idOutd = record.get("ID(o)").asDouble();
-		int idOut = (int) idOutd;
-		addToIds("idOut", idOut);
-	}
-
-	public BlockNodes getIterationBlock(int idOutStart , Session session){
+	public BlockNodes analyzeNextBlock(int idOutStart , Session session){
 		StatementResult result;
 		Record record;
 		CypherQuery query = new CypherQuery();
@@ -184,13 +60,38 @@ public class BlockNodes{
 		// que representa el cambio en la transacción, ya que es el que corresponde con una
 		// dirección del usuario. 
 		// Primero, no obstante, hay que comprobar si alguna de las direcciones de los outputs es del usuario
-		// Todo esto se hace en storeChangeOutput
-		storeChangeOutput(result,session);
+		// Todo esto se hace en findChangeOutput
+		findChangeOutput(result,session);
 
 		return this;
 	}
 
-	private void storeChangeOutput(StatementResult result, Session session){
+	public BlockNodes analyzePreviousBlock(int idInStart , Session session){
+		StatementResult result;
+		Record record;
+		CypherQuery query = new CypherQuery();
+
+		// Extrae desde el input el bloque anterior
+		int idTx;
+		result = query.getPreviousBlockFromInput(idInStart,session);
+		if(result.hasNext()){
+			record = result.next();
+			//addToNodes(0,record.get("b").asMap());
+			//addToNodes(1,record.get("t").asMap());
+			double idTxd = record.get("ID(t)").asDouble();
+			idTx = (int) idTxd;
+		}else{
+			return null;
+		}
+
+		// Obtiene todos los outputs de la transacción. De ellos hay que ver si el que se corresponde con nuestro 
+		// input origen es el del cambio. Si es así, todos los input de esta transacción son del usuario
+		result = query.getOutputsOfTx(idTx,session);
+		// Pensar alguna forma para que se pueda reutilizar el metodo findChangeOutput
+		findChangeOutput(result,session);
+	}
+
+	private void findChangeOutput(StatementResult result, Session session){
 		List<Map<String, Object>> outputs = new ArrayList<Map<String, Object>>();
 		Map<Integer, Integer> idsOutputs = new HashMap<Integer, Integer>();
 		
@@ -205,7 +106,7 @@ public class BlockNodes{
 			int idOut = (int) idOutd;
 			idsOutputs.put(indexOutput, idOut);
 			String address = getAddress(record.get("o").asMap());
-			if(addressIdInput.values().contains(address)){
+			if(addressesUser.values().contains(address)){
 				addToNodes(this.nodes.size(), record.get("o").asMap());
 				addToIds("idOut", idOut);
 				return;
@@ -372,7 +273,7 @@ public class BlockNodes{
 		}
 	}
 
-	// Devuelve los satoshis de los outputs de una transacción
+	// Devuelve los satoshis de los outputs de una transacción (los satoshis de la entrada menos la propina)
 	private int getSatoshisOut(List<Map<String, Object>> outputs){
 		int satoshisOut = 0;
 		for (Map<String, Object> output : outputs){

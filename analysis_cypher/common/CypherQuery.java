@@ -55,6 +55,14 @@ public class CypherQuery{
 		return result;
 	}
 
+	public StatementResult getPreviousBlockFromInput(int idInput, Session session){
+		Map<String, Object> params = new HashMap<String, Object>();
+		params.put("idInput",idInput);
+		StatementResult result = session.run("START i=node({idInput}) MATCH (i)-[:ORIGIN_OUTPUT]->(o:Output)-[:TO]->(t:Transaction)-[:TO]->(b:Block) RETURN b,t,ID(t) LIMIT 1",
+					params);
+		return result;
+	}
+
 	public StatementResult getInputsOfTx(int idTx, Session session){
 		Map<String, Object> params = new HashMap<String, Object>();
 		params.put("idTx",idTx);

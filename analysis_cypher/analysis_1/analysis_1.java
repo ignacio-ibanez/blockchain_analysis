@@ -46,6 +46,7 @@ class Execute {
 		// ------------------------------------
 		// Para probar buscando desde direccion
 		// FALTA POR HACER
+
 		// ------------------------------------
 		// Para probar buscando desde hash de bloque
 		String hashHeader = "";
@@ -63,12 +64,14 @@ class Execute {
 		// ------------------------------------
 		// Para probar buscando desde transacción y flag para analizar todos los outputs
 		// Falta por hacer
+
 		// ------------------------------------
-		int scope = 1;
-		BlockNodes originBlock = new BlockNodes();
+		int scope = 3;
+		IinitialBlock originBlock = new InitialBlock();
 		originBlock.getOriginNodes(mode,initialParam,session);
 		originBlockNode = originBlock.getNodes().get(0);
-		blocksAnalysed.add(0, originBlock);
+		// blocksAnalysed.add(0, originBlock); --- Igual es mejor no meter el bloque origen en blocksAnalysed
+
 		/*System.out.println("El nodo origen ha sido guardado");
 		System.out.println("El hash del bloque origen es: " + originBlockNode.get("hashHeader"));
 		System.out.println("El hash de la transaccion origen es: " + originBlock.getOriginNodes(timeStamp, session).getNodes().get(1).get("hashTransaction"));
@@ -83,16 +86,16 @@ class Execute {
 		// PRUEBA
 		//int idOut = 446;    // ---- Contiene [:ORIGIN_OUTPUT]-(input)
 		//int idInnput = 359884
-		Map<Integer, String> addressIdInput = new HashMap<Integer, String>();
+		Map<Integer, String> addressesUser = new HashMap<Integer, String>();
 		for(int i=1; i<=scope; i++){
-			BlockNodes nodesBlock = new BlockNodes(addressIdInput);
-			if(nodesBlock.getIterationBlock(idOut, session) == null){
+			BlockNodes nodesBlock = new BlockNodes(addressesUser);
+			if(nodesBlock.analyzeNextBlock(idOut, session) == null){
 				break;
 			}else{
 				blocksAnalysed.add(i, nodesBlock);
 				while(nodesBlock.getAddresses().hasNext()){
-					Map.Entry pair = (Map.Entry)nodesBlock.getAddresses().next();
-					addressIdInput.put(pair.getKey(),pair.getValue());
+					Map.Entry pair = (Map.Entry) nodesBlock.getAddresses().next();
+					addressesUser.put(pair.getKey(),pair.getValue());
 				}
 			}
 			/*int numberNodes = blocksAnalysed.get(i).getNodes().size();
