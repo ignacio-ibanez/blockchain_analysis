@@ -11,7 +11,7 @@ public class BlockNodes{
 	private List<Map<String, Object>> nodes = new ArrayList<Map<String, Object>>();
 	private Map<Integer, String> addressesUser;
 	// FALTA METER LAS DIRECCIONES EN EL MAP DE ABAJO
-	private Map<Integer, String> addressIdInput = new HashMap<String, Integer>();
+	private Map<Integer, String> addressIdInput = new HashMap<Integer, String>();
 
 	public BlockNodes(Map<Integer, String> addressesUser){
 		this.addressesUser = addressesUser;
@@ -21,6 +21,8 @@ public class BlockNodes{
 		StatementResult result;
 		Record record;
 		CypherQuery query = new CypherQuery();
+
+		System.out.println("El id del output origen en analyzeNextBlock es: " + idOutStart);
 
 		// Obtiene y almacena el nodo Block y el nodo Transaction del bloque siguiente 
 		// utilizando el la relación ORIGIN_OUTPUT
@@ -36,6 +38,8 @@ public class BlockNodes{
 			return null;
 		}
 
+		System.out.println("El id de la transacción en analyzeNextBlock es: " + idTx);
+
 		// Obtiene y almacena los nodos Input de la transacción obtenida en la sentencia 
 		// anterior. De los nodos saca y almacena las direcciones
 		result = query.getInputsOfTx(idTx,session);
@@ -47,7 +51,7 @@ public class BlockNodes{
 			int idIn = (int) idInd;
 			addToIds("idIn"+(indexMap-1), idIn);
 			try{
-				addToAddressIdInput(idIn,getAddress(query.getOriginOutput(idIn,session).get("o").asMap()));
+				addToAddressIdInput(idIn,getAddress(getOriginOutput(idIn,session)));
 			}catch(Exception e){}
 			indexMap++;
 		}
@@ -56,17 +60,60 @@ public class BlockNodes{
 
 		// Obtiene los outputs de la transacción.
 		result = query.getOutputsOfTx(idTx,session);
-		// Almacena los outputs obtenidos. No vale almacenar todos, ya que solo interesa el output
-		// que representa el cambio en la transacción, ya que es el que corresponde con una
+		List<Map<String, Object>> outputs = new ArrayList<Map<String, Object>>();
+		Map<Integer, Integer> idsOutputs = new HashMap<Integer, Integer>();
+		// Almacena en la lista outputs los nodos Output y comprueba si alguno de ellos
+		// tiene de dirección alguna de las ya almacenadas.
+		// Solo interesa el output que representa el cambio en la transacción, 
+		// ya que es el que corresponde con una
 		// dirección del usuario. 
-		// Primero, no obstante, hay que comprobar si alguna de las direcciones de los outputs es del usuario
-		// Todo esto se hace en findChangeOutput
-		findChangeOutput(result,session);
+		int indexVariableOutput = 0;
+		while(result.hasNext()){
+			record = result.next();
+			outputs.add(indexVariableOutput,record.get("o").asMap());
+			double idOutd = record.get("ID(o)").asDouble();
+			int idOut = (int) idOutd;
+			idsOutputs.put(indexVariableOutput, idOut);
+			String address = getAddress(record.get("o").asMap());
+			if(addressesUser.values().contains(address) || addressIdInput.values().contains(address)){
+				addToNodes(this.nodes.size(), record.get("o").asMap());
+				addToIds("idOut", idOut);
+				return this;
+			}
+			indexVariableOutput++;
+		}
+
+		System.out.println("En este punto se va a llamar a findChangeOutput");
+
+		// Comprueba que se debe hacer para encontrar el output cambio, si es que hay cambio
+		int changeWay = findChangeOutput(outputs,idsOutputs,session);
+		System.out.println("changeWay debería ser 0 y es: " + changeWay);
+		// changeWay puede ser: 0->abandonar; 1->seguimiento ; 2->combinaciones
+		switch(changeWay){
+			case 0:
+				break;
+
+			case 1:
+				for(int i=0; i<outputs.size(); i++){
+					if(followOutput(idsOutputs.get(i), session, 5)){
+						addToNodes(this.nodes.size(), outputs.get(i));
+						addToIds("idOut", idsOutputs.get(i));
+						break;
+					}
+				}
+				break;
+
+			case 2:
+				int changeOutputIndex = combinationXIn2Out(outputs,session);
+				addToNodes(this.nodes.size(),outputs.get(changeOutputIndex));
+				addToIds("idOut", idsOutputs.get(changeOutputIndex));
+		}
 
 		return this;
 	}
 
-	public BlockNodes analyzePreviousBlock(int idInStart , Session session){
+	// DE MOMENTO NO SE USA. SI DA TIEMPO, PENSAR UTILIDAD
+	public BlockNodes analyzePreviousBlock(int idInStart, Session session){
 		StatementResult result;
 		Record record;
 		CypherQuery query = new CypherQuery();
@@ -87,17 +134,10 @@ public class BlockNodes{
 		// Obtiene todos los outputs de la transacción. De ellos hay que ver si el que se corresponde con nuestro 
 		// input origen es el del cambio. Si es así, todos los input de esta transacción son del usuario
 		result = query.getOutputsOfTx(idTx,session);
-		// Pensar alguna forma para que se pueda reutilizar el metodo findChangeOutput
-		findChangeOutput(result,session);
-	}
-
-	private void findChangeOutput(StatementResult result, Session session){
 		List<Map<String, Object>> outputs = new ArrayList<Map<String, Object>>();
 		Map<Integer, Integer> idsOutputs = new HashMap<Integer, Integer>();
-		
-		// Almacena en la lista outputs los nodos Output pasados en la variable result y comprueba si alguno de ellos
+		// Almacena en la lista outputs los nodos Output y comprueba si alguno de ellos
 		// tiene de dirección alguna de las ya almacenadas.
-		Record record;
 		int indexOutput = 0;
 		while(result.hasNext()){
 			record = result.next();
@@ -106,82 +146,63 @@ public class BlockNodes{
 			int idOut = (int) idOutd;
 			idsOutputs.put(indexOutput, idOut);
 			String address = getAddress(record.get("o").asMap());
-			if(addressesUser.values().contains(address)){
+			if(addressesUser.values().contains(address) || addressIdInput.values().contains(address)){
 				addToNodes(this.nodes.size(), record.get("o").asMap());
 				addToIds("idOut", idOut);
-				return;
+				return this;
 			}
 			indexOutput++;
 		}
+		
+		//findChangeOutput(result,session);
+		return this;
+	}
+
+	private int findChangeOutput(List<Map<String, Object>> outputs, Map<Integer, Integer> idsOutputs, Session session){
 
 		// Sacamos el numero de inputs y de outputs para realizar diferentes acciones dependiendo del caso
 		int numberOutputs = outputs.size();
 		int numberInputs = this.nodes.size()-2;
-		System.out.println("El número de outputs en storeChange es: " + numberOutputs);
-		System.out.println("El número de inputs en storeChange es: " + numberInputs);
+		System.out.println("El número de outputs en findChangeOutput es: " + numberOutputs);
+		System.out.println("El número de inputs en findChangeOutput es: " + numberInputs);
 		if(numberInputs==1){
 			if(numberOutputs == 1){
 				// Abandonar este camino -----  Pensar si puede ser un mecanismo de Bitcoin
 				// Solo hay un output, luego el pago es exacto y no hay cambio
-				return;
+				return 0;
 			}else{
-				// Seguimiento --- Pensar si es mejor hacerlo cuando haya almacenadas un número 
-				// mayor de direcciones del usuario
+				// Seguimiento 
 				//
 				// No hay forma de conocer cual es el cambio, así que se debe realizar
 				// un seguimiento de todos los outputs hasta que se consuma un alcance,
 				// "iterationFollow", o hasta que en alguno de ellos se detecte una 
 				// conexión con otra de las direcciones almacenadas del usuario
-				System.out.println("Entra aqui porque hay varios outs y 1 input");
-				for(int i=0; i<numberOutputs; i++){
-					if(followOutput(idsOutputs.get(i), session, 10)){
-						addToNodes(this.nodes.size(), outputs.get(i));
-						addToIds("idOut", idsOutputs.get(i));
-					}
-				}
+				return 1;
 			}
 		}else{
 			if(numberOutputs == 1){
 				// Abandonar este camino -----  Pensar si puede ser un mecanismo de Bitcoin
 				// Solo hay un output, luego el pago es exacto y no hay cambio
-				return;
+				return 0;
 			}else if(numberOutputs == 2){
 				// Buscar combinaciones
 				// Al ser x inputs y 2 outputs, se pueden buscar combinaciones entre
 				// valores de satoshis para encontrar el cambio
-				int changeOutputIndex = combinationXIn2Out(outputs,session);
-				if(changeOutputIndex == -1){
-					for(int i=0; i<numberOutputs; i++){
-						if(followOutput(idsOutputs.get(i), session, 3)){
-							addToNodes(this.nodes.size(), outputs.get(i));
-							addToIds("idOut", idsOutputs.get(i));
-						}
-					}
-				}else{
-					addToNodes(this.nodes.size(),outputs.get(changeOutputIndex));
-					addToIds("idOut", idsOutputs.get(changeOutputIndex));
-				}
+				return 2;
 			}else{
 				if(numberOutputs > 6){  // PENSAR ESTE VALOR (PARA CONSIDERAR POOLS)
-					return;
+					return 0;
 				}else{
-					// Seguimiento --- Pensar si es mejor hacerlo cuando haya almacenadas un número 
-					// mayor de direcciones del usuario
+					// Seguimiento 
 					//
 					// No hay forma de conocer cual es el cambio, así que se debe realizar
 					// un seguimiento de todos los outputs hasta que se consuma un alcance,
 					// "iterationFollow", o hasta que en alguno de ellos se detecte una 
 					// conexión con otra de las direcciones almacenadas del usuario
-					for(int i=0; i<numberOutputs; i++){
-						if(followOutput(idsOutputs.get(i), session, 10)){
-							addToNodes(this.nodes.size(), outputs.get(i));
-							addToIds("idOut", idsOutputs.get(i));
-						}
-					}
+					return 1;
 				}
 			}
 		}
-
 	}
 
 	private boolean followOutput(int idOutput, Session session, int iterationFollow){
@@ -215,12 +236,12 @@ public class BlockNodes{
 		while(result.hasNext()){
 			record = result.next();
 			double idInputd = record.get("ID(i)").asDouble();
-			idInput = (int) idInputd;
+			int idInput = (int) idInputd;
 			result = query.getOriginOutput(idInput,session);
 			if(result.hasNext()){
 				record = result.next();
 				String address = getAddress(record.get("o").asMap());
-				if(this.addressIdInput.values().contains(address)){
+				if(addressesUser.values().contains(address) || addressIdInput.values().contains(address)){
 					return true;
 				}
 			}
@@ -234,11 +255,11 @@ public class BlockNodes{
 		// ESTAR REALIZANDOSE UNA TRANSACCIÓN INVERSA DEL QUE RECIBIÓ AL QUE PAGÓ
 		result = query.getOutputsOfTx(idTx,session);
 		while(result.hasNext()){
-			record.next();
+			record = result.next();
 			double idOutd = record.get("ID(o)").asDouble();
-			int idOut = (int) idOutd;
+			idOut = (int) idOutd;
 			String address = getAddress(record.get("o").asMap());
-			if(this.addressIdInput.values().contains(address)){
+			if(addressesUser.values().contains(address) || addressIdInput.values().contains(address)){
 				return true;
 			}
 			if(followOutput(idOut, session, iterationFollow-1)){

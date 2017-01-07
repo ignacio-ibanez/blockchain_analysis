@@ -34,52 +34,58 @@ class Execute {
 		// Nodos del bloque origen
 		List<Map<String, String>> origin = new ArrayList<Map<String, String>>();
 		// Nodo Block del bloque origen
-		Map<String, Object> originBlockNode = new HashMap<String, Object>();
+		//Map<String, Object> originBlockNode = new HashMap<String, Object>();
 		// Mapa de parametros para obtener el bloque inicial
 		Map<String, String> initialParam = new HashMap<String, String>();
 
+		// PENSAR SI AÑADIR EN EL MODELO UN FLAG QUE INDIQUE SI ES LA TRANSACCIÓN RECOMPENSA
 		// Mode debe ser date, address, block, transaction, transactionWithIndex, transactionAllIndexes
-		String mode = "";
-		// Para probar buscando desde timeStamp
-		String timeStamp = "496ab951";
+		String mode = "date";
+		// Falta añadir en el modo "date" para que coja la transacción recompensa
+		// Para probar buscando desde timeStamp -> "date"
+		String timeStamp = "496aee57";
 		initialParam.put("timeStamp",timeStamp);
 		// ------------------------------------
-		// Para probar buscando desde direccion
+		// Para probar buscando desde direccion -> "address"
 		// FALTA POR HACER
 
 		// ------------------------------------
-		// Para probar buscando desde hash de bloque
-		String hashHeader = "";
-		initialParam.put("hashBlock",hashHeader);
+		// Para probar buscando desde hash de bloque -> "block"
+		//String hashHeader = "00000000b2cde2159116889837ecf300bd77d229d49b138c55366b54626e495d";
+		//hashHeader = hashHeader.substring(hashHeader.length()-7,hashHeader.length());
+		//initialParam.put("hashBlock",hashHeader);
 		// ------------------------------------
-		// Para probar buscando desde transacción
-		String hashTransaction = "";
-		initialParam.put("hashTransaction",hashTransaction);
+		// Para probar buscando desde transacción -> "transaction"
+		//String hashTransaction = "4385fcf8b14497d0659adccfe06ae7e38e0b5dc95ff8a13d7c62035994a0cd79";
+		//hashTransaction = hashTransaction.substring(hashTransaction.length()-7,hashTransaction.length());
+		//initialParam.put("hashTransaction",hashTransaction);
 		// ------------------------------------
-		// Para probar buscando desde transacción con indice output
-		String hashTransaction = "";
-		String indexOutput = "";
-		initialParam.put("hashTransaction",hashTransaction);
-		initialParam.put("indexOutput",indexOutput);
+		// Para probar buscando desde transacción con indice output -> "transactionWithIndex"
+		//String hashTransaction = "4385fcf8b14497d0659adccfe06ae7e38e0b5dc95ff8a13d7c62035994a0cd79";
+		//hashTransaction = hashTransaction.substring(hashTransaction.length()-7,hashTransaction.length());
+		//String indexOutput = "00000000";
+		//initialParam.put("hashTransaction",hashTransaction);
+		//initialParam.put("indexOutput",indexOutput);
 		// ------------------------------------
-		// Para probar buscando desde transacción y flag para analizar todos los outputs
+		// Para probar buscando desde transacción y flag para analizar todos los outputs -> "transactionAllIndexes"
 		// Falta por hacer
 
 		// ------------------------------------
-		int scope = 3;
-		IinitialBlock originBlock = new InitialBlock();
+		int scope = 1;
+		InitialBlock originBlock = new InitialBlock();
+		// Comprobar lo que devuelve getOriginNodes antes de seguir
 		originBlock.getOriginNodes(mode,initialParam,session);
-		originBlockNode = originBlock.getNodes().get(0);
+		//originBlockNode = originBlock.getNodes().get(0);
 		// blocksAnalysed.add(0, originBlock); --- Igual es mejor no meter el bloque origen en blocksAnalysed
 
 		/*System.out.println("El nodo origen ha sido guardado");
-		System.out.println("El hash del bloque origen es: " + originBlockNode.get("hashHeader"));
-		System.out.println("El hash de la transaccion origen es: " + originBlock.getOriginNodes(timeStamp, session).getNodes().get(1).get("hashTransaction"));
-		System.out.println("El indexTxOut del output es: " + originBlock.getOriginNodes(timeStamp, session).getNodes().get(2).get("indexTxOut"));
-		System.out.println("El scriptLength del output es: " + originBlock.getOriginNodes(timeStamp, session).getNodes().get(2).get("scriptLength"));
-		System.out.println("El id de la transaccion es: " + originBlock.getOriginNodes(timeStamp, session).getIds().get("idTx"));
-		System.out.println("El id del output es: " + originBlock.getOriginNodes(timeStamp, session).getIds().get("idOut"));
-		System.out.println("");*/
+		System.out.println("El hash del bloque origen es: " + originBlock.getNodes().get(0).get("hashHeader"));
+		System.out.println("El hash de la transaccion origen es: " + originBlock.getNodes().get(1).get("hashTransaction"));
+		System.out.println("El indexTxOut del output es: " + originBlock.getNodes().get(2).get("indexTxOut"));
+		System.out.println("El scriptLength del output es: " + originBlock.getNodes().get(2).get("scriptLength"));
+		System.out.println("El id de la transaccion es: " + originBlock.getIds().get("idTx"));*/
+		System.out.println("El id del output origen es: " + originBlock.getIds().get("idOut"));
+		System.out.println("");
 
 		// Obtención de los siguientes bloques en el seguimiento hacia adelante
 		int idOut = originBlock.getIds().get("idOut");   //--- SE PONE EL DE ABAJO PARA PRUEBAS, LUEGO DESCOMENTAR
@@ -87,30 +93,28 @@ class Execute {
 		//int idOut = 446;    // ---- Contiene [:ORIGIN_OUTPUT]-(input)
 		//int idInnput = 359884
 		Map<Integer, String> addressesUser = new HashMap<Integer, String>();
-		for(int i=1; i<=scope; i++){
+		for(int i=0; i<scope; i++){
 			BlockNodes nodesBlock = new BlockNodes(addressesUser);
 			if(nodesBlock.analyzeNextBlock(idOut, session) == null){
 				break;
 			}else{
 				blocksAnalysed.add(i, nodesBlock);
-				while(nodesBlock.getAddresses().hasNext()){
-					Map.Entry pair = (Map.Entry) nodesBlock.getAddresses().next();
-					addressesUser.put(pair.getKey(),pair.getValue());
+				System.out.println("El bloque ha sido analizado");
+				System.out.println("Debería entrar aquí cuando el output se haya gastado");
+				// comprobar que si no hay un output dentro de las direcciones se pare la iteración
+				for(Map.Entry<Integer, String> entry : nodesBlock.getAddresses().entrySet()){
+					System.out.println("El id del input es: " + entry.getKey() + ". La dirección es: " + entry.getValue());
+					addressesUser.put(entry.getKey(),entry.getValue());
 				}
 			}
-			/*int numberNodes = blocksAnalysed.get(i).getNodes().size();
-			System.out.println("Número de nodos: " + numberNodes);
-			System.out.println("El hash del nodo bloque es: " + blocksAnalysed.get(i).getNodes().get(0).get("hashHeader"));
-			System.out.println("El hash de la transaccion es: " + blocksAnalysed.get(i).getNodes().get(1).get("hashTransaction"));
-			System.out.println("El indexTxOut del output es: " + blocksAnalysed.get(i).getNodes().get(numberNodes-1).get("indexTxOut"));
-			System.out.println("El script del primer input es: " + blocksAnalysed.get(i).getNodes().get(2).get("script"));*/
 		}
 
+		System.out.println("");
+		System.out.println("FIN DEL ANÁLISIS");
+		System.out.println("");
+		int numeroBloques = blocksAnalysed.size();
+		System.out.println("Número de bloques analizados: " + numeroBloques);
 
-		// Obtención de los bloques anteriores en el seguimiento hacia atras
-		//for(int i=1; i<blocksAnalysed.size(); i++){
-
-		//}
 
 		
     	/*

@@ -13,36 +13,39 @@ public class InitialBlock{
 	public InitialBlock getOriginNodes(String mode, Map<String,String> param, Session session){
 		switch(mode){
 			case "date":
-			searchByTimeStamp(param,session);
-			return this;
+				searchByTimeStamp(param,session);
+				return this;
 
 			case "address":
-			searchByAddress(param,session);
-			return this;
+				searchByAddress(param,session);
+				return this;
 
 			case "block":
-			searchByHashBlock(param,session);
-			return this;
+				searchByHashBlock(param,session);
+				return this;
 
 			case "transaction":
-			searchByTransaction(param,session);
-			return this;
+				searchByTransaction(param,session);
+				return this;
 
 			case "transactionWithIndex":
-			searchByTransactionWithIndex(param,session);
-			return this;
+				searchByTransactionWithIndex(param,session);
+				return this;
 
 			case "transactionAllIndexes":
-			searchByTransactionAllIndexes(param,session);
-			return this;
+				searchByTransactionAllIndexes(param,session);
+				return this;
+
+			default:
+				return this;
 		}
 	}
 
 	public void searchByTimeStamp(Map<String,String> timeStampMap, Session session){
 		CypherQuery query = new CypherQuery();
 		Record record;
-		String timestamp = timeStampMap.get("timeStamp");
-		StatementResult result = query.getOriginBlockByTimeStamp(timestamp,session);
+		String timeStamp = timeStampMap.get("timeStamp");
+		StatementResult result = query.getOriginBlockByTimeStamp(timeStamp,session);
 
 		// Busca el bloque que tenga el timestamp más parecido al introducido por el usuario
 		int timeStampModUpInt;
@@ -71,7 +74,8 @@ public class InitialBlock{
 	public void searchByAddress(Map<String,String> addressMap, Session session){
 		CypherQuery query = new CypherQuery();
 		Record record;
-		StatementResult result = query.getOriginBlockByTimeStamp(timestamp,session);	
+		// Falta por hacer
+		//StatementResult result = query.getOriginBlockByTimeStamp(timestamp,session);	
 	}
 
 	public void searchByHashBlock(Map<String,String> hashBlockMap, Session session){
@@ -116,9 +120,9 @@ public class InitialBlock{
 		Record record;
 		String hashTransaction = hashTransactionMap.get("hashTransaction");
 
-		if(result.hasNext()){
+		//if(result.hasNext()){
 			// FALTA COMPLETAR
-		}
+		//}
 	}
 
 	public void saveOriginNodes(Record record){

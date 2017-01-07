@@ -22,27 +22,27 @@ public class CypherQuery{
 		return result;
 	}
 
-	public StatementResult getOriginBlockByHashBlock(String hashHeader, Session session){
+	public StatementResult getOriginBlockByHashBlock(String hashHeaderReduced, Session session){
 		Map<String, Object> params = new HashMap<String, Object>();
-		params.put("hashHeader",hashHeader);
-		StatementResult result = session.run("OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction)<-[:TO]-(o:Output) WHERE b.hashHeader={hashHeader} RETURN b,t,o,ID(t),ID(o) LIMIT 1",
+		params.put("hashHeaderReduced",hashHeaderReduced);
+		StatementResult result = session.run("OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction)<-[:TO]-(o:Output) WHERE b.hashHeaderReduced={hashHeaderReduced} RETURN b,t,o,ID(t),ID(o) LIMIT 1",
 					params);
 		return result;
 	}
 
-	public StatementResult getOriginBlockByTransaction(String hashTransaction, Session session){
+	public StatementResult getOriginBlockByTransaction(String hashTransactionReduced, Session session){
 		Map<String, Object> params = new HashMap<String, Object>();
 		params.put("hashTransactionReduced",hashTransactionReduced);
-		StatementResult result = session.run("OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction)<-[:TO]-(o:Output) WHERE t.hashTransactionReduced={hashTransactionReduced} AND o.indexTxOutput="00000000" RETURN b,t,o,ID(t),ID(o) LIMIT 1",
+		StatementResult result = session.run("OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction)<-[:TO]-(o:Output) WHERE t.hashTransactionReduced={hashTransactionReduced} AND o.indexTxOut='00000000' RETURN b,t,o,ID(t),ID(o) LIMIT 1",
 					params);
 		return result;
 	}
 
-	public StatementResult getOriginBlockByTransactionWithIndex(String hashTransaction, String indexOutput, Session session){
+	public StatementResult getOriginBlockByTransactionWithIndex(String hashTransactionReduced, String indexOutput, Session session){
 		Map<String, Object> params = new HashMap<String, Object>();
 		params.put("hashTransactionReduced",hashTransactionReduced);
 		params.put("indexOutput",indexOutput);
-		StatementResult result = session.run("OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction)<-[:TO]-(o:Output) WHERE t.hashTransactionReduced={hashTransactionReduced} AND o.indexTxOutput={indexOutput} RETURN b,t,o,ID(t),ID(o) LIMIT 1",
+		StatementResult result = session.run("OPTIONAL MATCH (b:Block)<-[:TO]-(t:Transaction)<-[:TO]-(o:Output) WHERE t.hashTransactionReduced={hashTransactionReduced} AND o.indexTxOut={indexOutput} RETURN b,t,o,ID(t),ID(o) LIMIT 1",
 					params);
 		return result;
 	}

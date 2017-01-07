@@ -388,7 +388,7 @@ def getBlockContent(block):
 			# --------------------------------------------------
 			# Busco el nodo output que hace refencia al origen del input
 			# --------------------------------------------------
-			if(transactions[iTx].inputCount > 1):
+			if(inputObj.indexPreviousTxout != "ffffffff"):
 				previousOutput = blockchain_db.data("OPTIONAL MATCH (t:Transaction {hashTransactionReduced: {hashPreviousTransactionReduced}})<-[:TO]-(out:Output) WHERE out.indexTxOut={indexPreviousTxout} RETURN out", 
 							hashPreviousTransactionReduced=inputObj.hashPreviousTransactionReduced, 
 							indexPreviousTxout=inputObj.indexPreviousTxout)
