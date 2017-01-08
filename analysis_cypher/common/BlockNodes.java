@@ -188,8 +188,7 @@ public class BlockNodes{
 			}
 		}else{
 			if(numberOutputs == 1){
-				// Abandonar este camino -----  Pensar si puede ser un mecanismo de Bitcoin
-				// Solo hay un output, luego el pago es exacto y no hay cambio
+				// Abandonar este camino 
 				return 0;
 			}else if(numberOutputs == 2){
 				// Buscar combinaciones

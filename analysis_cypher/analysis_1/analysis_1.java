@@ -22,6 +22,17 @@ import common.*;
 // ID(b): 356, b.timeStamp=496ab951 -> Bloque origen
 //1 - 
 
+// PRUEBA
+/*
+MATCH (t:Transaction) WHERE t.outputCount=2 AND t.inputCount=1 AND ID(t)>10000 RETURN t LIMIT 10
+
+MATCH (b2:Block)<-[r3:TO]-(t2:Transaction)<-[r4:TO]-(o:Output)<-[r2:ORIGIN_OUTPUT]-(i:Input)-[r:TO]->(t:Transaction)-[r5:TO]->(b:Block) 
+WHERE ID(t)=11211 RETURN i,o,r2,r3,t2,r4,b2,r5,b,t
+
+MATCH (n)-[r:TO]->(t:Transaction) WHERE ID(t)=11211 RETURN n,r,t
+
+*/
+
 class Execute {
 
 	public static void main (String[] args){
