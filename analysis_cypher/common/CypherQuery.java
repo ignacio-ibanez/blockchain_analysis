@@ -84,4 +84,10 @@ public class CypherQuery{
 		return result;
 	}
 
+	public StatementResult getInputFromOutput(int idOutput, Session session){
+		Map<String, Object> params = new HashMap<String, Object>();
+		params.put("idOutput",idOutput);
+		StatementResult result = session.run("START o=node({idOutput}) MATCH (o)<-[:ORIGIN_OUTPUT]-(i:Input) RETURN i,ID(i)", params);
+		return result;
+	}
 }

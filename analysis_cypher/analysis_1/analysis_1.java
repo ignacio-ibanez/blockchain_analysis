@@ -40,11 +40,11 @@ class Execute {
 
 		// PENSAR SI AÑADIR EN EL MODELO UN FLAG QUE INDIQUE SI ES LA TRANSACCIÓN RECOMPENSA
 		// Mode debe ser date, address, block, transaction, transactionWithIndex, transactionAllIndexes
-		String mode = "date";
+		String mode = "transactionWithIndex";
 		// Falta añadir en el modo "date" para que coja la transacción recompensa
 		// Para probar buscando desde timeStamp -> "date"
-		String timeStamp = "496aee57";
-		initialParam.put("timeStamp",timeStamp);
+		//String timeStamp = "496aee57";
+		//initialParam.put("timeStamp",timeStamp);
 		// ------------------------------------
 		// Para probar buscando desde direccion -> "address"
 		// FALTA POR HACER
@@ -61,17 +61,18 @@ class Execute {
 		//initialParam.put("hashTransaction",hashTransaction);
 		// ------------------------------------
 		// Para probar buscando desde transacción con indice output -> "transactionWithIndex"
-		//String hashTransaction = "4385fcf8b14497d0659adccfe06ae7e38e0b5dc95ff8a13d7c62035994a0cd79";
-		//hashTransaction = hashTransaction.substring(hashTransaction.length()-7,hashTransaction.length());
-		//String indexOutput = "00000000";
-		//initialParam.put("hashTransaction",hashTransaction);
-		//initialParam.put("indexOutput",indexOutput);
+		String hashTransaction = "9e7bc9715975579b36d0a81383dc76fcb41c9db45c77557083da5f4f76556b16";
+		hashTransaction = hashTransaction.substring(hashTransaction.length()-7,hashTransaction.length());
+		String indexOutput = "00000001";
+		initialParam.put("hashTransaction",hashTransaction);
+		initialParam.put("indexOutput",indexOutput);
 		// ------------------------------------
 		// Para probar buscando desde transacción y flag para analizar todos los outputs -> "transactionAllIndexes"
 		// Falta por hacer
 
 		// ------------------------------------
-		int scope = 1;
+		int scope = 2;
+		boolean analysisFinished = true;
 		InitialBlock originBlock = new InitialBlock();
 		// Comprobar lo que devuelve getOriginNodes antes de seguir
 		originBlock.getOriginNodes(mode,initialParam,session);
@@ -96,6 +97,7 @@ class Execute {
 		for(int i=0; i<scope; i++){
 			BlockNodes nodesBlock = new BlockNodes(addressesUser);
 			if(nodesBlock.analyzeNextBlock(idOut, session) == null){
+				System.out.println("El nuevo bloque no se conecta con un nuevo bloque");
 				break;
 			}else{
 				blocksAnalysed.add(i, nodesBlock);
@@ -105,6 +107,12 @@ class Execute {
 				for(Map.Entry<Integer, String> entry : nodesBlock.getAddresses().entrySet()){
 					System.out.println("El id del input es: " + entry.getKey() + ". La dirección es: " + entry.getValue());
 					addressesUser.put(entry.getKey(),entry.getValue());
+				}
+				try{
+					idOut = nodesBlock.getIds().get("idOut");
+				}catch(java.lang.NullPointerException e){
+					analysisFinished = false;  // PENSAR QUE HACER CON EL ANÁLISIS CUANDO NO SE HA PODIDO REALIZAR LAS ITERA.
+					break;
 				}
 			}
 		}

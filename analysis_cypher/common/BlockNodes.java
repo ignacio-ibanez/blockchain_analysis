@@ -73,9 +73,11 @@ public class BlockNodes{
 			outputs.add(indexVariableOutput,record.get("o").asMap());
 			double idOutd = record.get("ID(o)").asDouble();
 			int idOut = (int) idOutd;
+			System.out.println("Nuevo output de la transacción, con id: " + idOut);
 			idsOutputs.put(indexVariableOutput, idOut);
 			String address = getAddress(record.get("o").asMap());
 			if(addressesUser.values().contains(address) || addressIdInput.values().contains(address)){
+				System.out.println("Encontrado el output cambio, ya que se paga a una direccion ya almacenada");
 				addToNodes(this.nodes.size(), record.get("o").asMap());
 				addToIds("idOut", idOut);
 				return this;
@@ -87,17 +89,23 @@ public class BlockNodes{
 
 		// Comprueba que se debe hacer para encontrar el output cambio, si es que hay cambio
 		int changeWay = findChangeOutput(outputs,idsOutputs,session);
-		System.out.println("changeWay debería ser 0 y es: " + changeWay);
+		System.out.println("changeWay debería ser 1 y es: " + changeWay);
 		// changeWay puede ser: 0->abandonar; 1->seguimiento ; 2->combinaciones
 		switch(changeWay){
 			case 0:
 				break;
 
 			case 1:
+				System.out.println("Debería entrar aquí para empezar el seguimiento");
+				System.out.println("Hay 2 outputs en la transacción, y outputs.size() es: " + outputs.size());
 				for(int i=0; i<outputs.size(); i++){
-					if(followOutput(idsOutputs.get(i), session, 5)){
+					if(followOutput(idsOutputs.get(i), session, 2)){
 						addToNodes(this.nodes.size(), outputs.get(i));
 						addToIds("idOut", idsOutputs.get(i));
+						int idInput = getIdNextInput(idsOutputs.get(i),session);
+						if(idInput != (-1)){
+							addToAddressIdInput(idInput,getAddress(outputs.get(i))); 
+						}
 						break;
 					}
 				}
@@ -167,8 +175,7 @@ public class BlockNodes{
 		System.out.println("El número de inputs en findChangeOutput es: " + numberInputs);
 		if(numberInputs==1){
 			if(numberOutputs == 1){
-				// Abandonar este camino -----  Pensar si puede ser un mecanismo de Bitcoin
-				// Solo hay un output, luego el pago es exacto y no hay cambio
+				// Abandonar este camino 
 				return 0;
 			}else{
 				// Seguimiento 
@@ -213,6 +220,9 @@ public class BlockNodes{
 			return false;
 		}
 
+		System.out.println("El valor de iterationFollow es: " + iterationFollow);
+		System.out.println("El id del output al que se hace seguimiento es: " + idOutput);
+
 		CypherQuery query = new CypherQuery();
 		Record record;
 
@@ -226,6 +236,8 @@ public class BlockNodes{
 		}else{
 			return false;
 		}
+
+		System.out.println("Obtenida la transacción en followOutput");
 
 		// Obtiene los nodos Input de la transacción obtenida arriba.
 		// Obtiene de cada Input la dirección y comprueba si se corresponde con
@@ -242,6 +254,7 @@ public class BlockNodes{
 				record = result.next();
 				String address = getAddress(record.get("o").asMap());
 				if(addressesUser.values().contains(address) || addressIdInput.values().contains(address)){
+					System.out.println("Obtenida dirección del usuario en el seguimiento");
 					return true;
 				}
 			}
@@ -250,23 +263,44 @@ public class BlockNodes{
 		// Si de los inputs de esta transacción no se encuentran coincidencias,
 		// esto es, no hay ninguna direccion del usuario, se sigue buscando con los outputs
 		// de la misma transacción.
+		// Si en los outputs de esta transacción se puede encontrar cual es el cambio, se realiza el 
+		// seguimiento sobre ese output.
 		// Partiendo de los outputs, se inicia otra vez el proceso.
-		// ------ PENSAR SI CON LOS OUTPUTS YA NO PUEDE APLICARSE, PORQUE PUEDE
-		// ESTAR REALIZANDOSE UNA TRANSACCIÓN INVERSA DEL QUE RECIBIÓ AL QUE PAGÓ
+
+		System.out.println("Para continuar el seguimiento, se debe intentar encontrar el cambio");
+
+		List<Map<String, Object>> outputsTx = new ArrayList<Map<String, Object>>();
+		Map<Integer, Integer> idsOutputsTx = new HashMap<Integer, Integer>();
 		result = query.getOutputsOfTx(idTx,session);
+		int indexVariableOutput = 0;
 		while(result.hasNext()){
 			record = result.next();
+			outputsTx.add(indexVariableOutput,record.get("o").asMap());
 			double idOutd = record.get("ID(o)").asDouble();
 			idOut = (int) idOutd;
+			idsOutputsTx.put(indexVariableOutput, idOut);
 			String address = getAddress(record.get("o").asMap());
-			if(addressesUser.values().contains(address) || addressIdInput.values().contains(address)){
+			indexVariableOutput++;
+		}
+		int changeWay = findChangeOutput(outputsTx,idsOutputsTx,session);
+		System.out.println("El valor de changeWay en el seguimiento es: " + changeWay);
+		if(changeWay==2){
+			// combinaciones para encontrar el output cambio
+			int changeOutputIndex = combinationXIn2Out(outputsTx,session);
+			// output cambio: outputsTx.get(changeOutputIndex)
+			String addressChangeOutput = getAddress(outputsTx.get(changeOutputIndex));
+			if(addressesUser.values().contains(addressChangeOutput) || addressIdInput.values().contains(addressChangeOutput)){
 				return true;
 			}
-			if(followOutput(idOut, session, iterationFollow-1)){
+			if(followOutput(idsOutputsTx.get(changeOutputIndex), session, iterationFollow-1)){
 				return true;
 			}
 		}
+		else if(changeWay==1){
+			return false;
+		}
 
+		System.out.println("No se ha encontrado nada");
 		return false;
 	} 
 
@@ -374,6 +408,20 @@ public class BlockNodes{
 			return record.get("o").asMap();
 		}else{
 			return null;
+		}
+	}
+
+	private int getIdNextInput(int idOutput, Session session){
+		Map<String, Object> params = new HashMap<String, Object>();
+		CypherQuery query = new CypherQuery();
+		StatementResult result = query.getInputFromOutput(idOutput,session);
+		if(result.hasNext()){
+			Record record = result.next();
+			double idInd = record.get("ID(i)").asDouble();
+			int idIn = (int) idInd;
+			return idIn;
+		}else{
+			return -1;
 		}
 	}
 
