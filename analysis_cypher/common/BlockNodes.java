@@ -89,7 +89,7 @@ public class BlockNodes{
 
 		// Comprueba que se debe hacer para encontrar el output cambio, si es que hay cambio
 		int changeWay = findChangeOutput(outputs,idsOutputs,session);
-		System.out.println("changeWay debería ser 1 y es: " + changeWay);
+		System.out.println("changeWay debería ser 2 y es: " + changeWay);
 		// changeWay puede ser: 0->abandonar; 1->seguimiento ; 2->combinaciones
 		switch(changeWay){
 			case 0:
@@ -97,7 +97,6 @@ public class BlockNodes{
 
 			case 1:
 				System.out.println("Debería entrar aquí para empezar el seguimiento");
-				System.out.println("Hay 2 outputs en la transacción, y outputs.size() es: " + outputs.size());
 				for(int i=0; i<outputs.size(); i++){
 					if(followOutput(idsOutputs.get(i), session, 2)){
 						addToNodes(this.nodes.size(), outputs.get(i));
@@ -357,8 +356,11 @@ public class BlockNodes{
 		StatementResult result = query.getOriginOutput(idInput,session);
 		if(result.hasNext()){
 			Record record = result.next();
-			double satoshisD = record.get("o").get("valueSatoshis").asDouble();
-			int satoshis = (int) satoshisD;
+			//System.out.println(record.get("o").asMap());
+			Map<String,Object> output = new HashMap<String,Object>();
+			output = record.get("o").asMap();
+			String satoshisStr = output.get("valueSatoshis").toString();
+			int satoshis = Integer.parseInt(satoshisStr.substring(0,satoshisStr.length()-1));
 			return satoshis;
 		}else{
 			return 0;
@@ -370,15 +372,24 @@ public class BlockNodes{
 	private int combinationXIn2Out(List<Map<String, Object>> outputs, Session session){
 		int numberInputs = this.nodes.size()-2;
 		Map<Integer, Integer> inputsValues = new HashMap<Integer, Integer>();
+		System.out.println("Entra en combinationXIn2Out");
 		
 		for(int i=0; i<numberInputs; i++){
 			int shatoshisInput = getSatoshis(this.ids.get("idIn"+(i+1)),session);
-			int valueSatoshis0 = Integer.parseInt(outputs.get(0).get("valueSatoshis").toString());
-			int valueSatoshis1 = Integer.parseInt(outputs.get(1).get("valueSatoshis").toString());
+			int valueSatoshis0 = 0;
+			int valueSatoshis1 = 0;
+			String valueSatoshis0Str = outputs.get(0).get("valueSatoshis").toString();
+			String valueSatoshis1Str = outputs.get(1).get("valueSatoshis").toString();
+			valueSatoshis0 = Integer.parseInt(valueSatoshis0Str.substring(0,valueSatoshis0Str.length()-1));
+			valueSatoshis1 = Integer.parseInt(valueSatoshis1Str.substring(0,valueSatoshis0Str.length()-1));
+			System.out.println("Bitcoins del output 0: " + valueSatoshis0 + ". Bitcoins del output 1: " + valueSatoshis1);
 			int transactionFee = getTransactionFee(valueSatoshis0+valueSatoshis1,session);
+			System.out.println("La propina es: " + transactionFee);
 			if((shatoshisInput>valueSatoshis0+transactionFee) && (shatoshisInput<valueSatoshis1)){
+				System.out.println("El índice 0 es el output de cambio");
 				return 0;
 			}else if((shatoshisInput>valueSatoshis1+transactionFee) && (shatoshisInput<valueSatoshis0)){
+				System.out.println("El índice 1 es el output de cambio");
 				return 1;
 			}else{
 				int satoshisCombination = 0;

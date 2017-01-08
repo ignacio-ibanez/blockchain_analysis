@@ -24,10 +24,10 @@ import common.*;
 
 // PRUEBA
 /*
-MATCH (t:Transaction) WHERE t.outputCount=2 AND t.inputCount=1 AND ID(t)>10000 RETURN t LIMIT 10
+MATCH (t:Transaction) WHERE t.outputCount=2 AND t.inputCount=2 AND ID(t)>10000 RETURN t LIMIT 10
 
 MATCH (b2:Block)<-[r3:TO]-(t2:Transaction)<-[r4:TO]-(o:Output)<-[r2:ORIGIN_OUTPUT]-(i:Input)-[r:TO]->(t:Transaction)-[r5:TO]->(b:Block) 
-WHERE ID(t)=11211 RETURN i,o,r2,r3,t2,r4,b2,r5,b,t
+WHERE ID(t)=190707 RETURN i,o,r2,r3,t2,r4,b2,r5,b,t
 
 MATCH (n)-[r:TO]->(t:Transaction) WHERE ID(t)=11211 RETURN n,r,t
 
@@ -72,9 +72,9 @@ class Execute {
 		//initialParam.put("hashTransaction",hashTransaction);
 		// ------------------------------------
 		// Para probar buscando desde transacción con indice output -> "transactionWithIndex"
-		String hashTransaction = "9e7bc9715975579b36d0a81383dc76fcb41c9db45c77557083da5f4f76556b16";
+		String hashTransaction = "4f829f34a47c5967a437e556a0456cd72b6ef2bf9f4fe0222242cf64dd5b6ceb";
 		hashTransaction = hashTransaction.substring(hashTransaction.length()-7,hashTransaction.length());
-		String indexOutput = "00000001";
+		String indexOutput = "00000000";
 		initialParam.put("hashTransaction",hashTransaction);
 		initialParam.put("indexOutput",indexOutput);
 		// ------------------------------------
