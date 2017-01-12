@@ -21,38 +21,35 @@ previousBlockHash = ''
 
 
 class Block(object):
-	def __init__(self,magicID,blockSize,blockHeader,transactionsCount,hashHeader,hashHeaderReduced,timeStamp,version):
+	def __init__(self,magicID,blockSize,blockHeader,transactionsCount,hashHeader,timeStamp,version):
 		self.magicID = magicID
 		self.blockSize = blockSize
 		self.blockHeader = blockHeader
 		self.transactionsCount = transactionsCount
 		self.hashHeader = hashHeader
-		self.hashHeaderReduced = hashHeaderReduced
 		self.timeStamp = timeStamp
 		self.version = version
 
 class Transaction(object):
-	def __init__(self,transactionVersion,inputCount,outputCount,lockTime,hashTransaction,hashTransactionReduced):
+	def __init__(self,transactionVersion,inputCount,outputCount,lockTime,hashTransaction):
 		self.transactionVersion = transactionVersion
 		self.inputCount = inputCount
 		self.outputCount = outputCount
 		self.lockTime = lockTime
 		self.hashTransaction = hashTransaction
-		self.hashTransactionReduced = hashTransactionReduced
 
 class Input(object):
-	def __init__(self,indexPreviousTxout,scriptLength,script,sequenceNumber,hashPreviousTransactionReduced):
+	def __init__(self,indexPreviousTxout,scriptLength,script,sequenceNumber,hashPreviousTransaction):
 		self.indexPreviousTxout = indexPreviousTxout
 		self.scriptLength = scriptLength
 		self.script = script
 		self.sequenceNumber = sequenceNumber
-		self.hashPreviousTransactionReduced = hashPreviousTransactionReduced
+		self.hashPreviousTransaction = hashPreviousTransaction
 
 class Output(object):
-	def __init__(self,valueSatoshis,scriptLength,lockingScript,indexTxOut):
+	def __init__(self,valueSatoshis,scriptPublicKey,indexTxOut):
 		self.valueSatoshis = valueSatoshis
-		self.scriptLength = scriptLength
-		self.lockingScript = lockingScript
+		self.scriptPublicKey = scriptPublicKey
 		self.indexTxOut = indexTxOut
 
 
@@ -69,7 +66,7 @@ def storeNodes(newBlockToSave, transactions, inputs, outputs):
 	tx = blockchain_db.begin()
 	newBlockNode = Node("Block", magicId=newBlockToSave.magicID, blockSize=newBlockToSave.blockSize, 
 					blockHeader=newBlockToSave.blockHeader, transactionsCount=newBlockToSave.transactionsCount, 
-					hashHeader=newBlockToSave.hashHeader, hashHeaderReduced=newBlockToSave.hashHeaderReduced,
+					hashHeader=newBlockToSave.hashHeader,
 					timeStamp=newBlockToSave.timeStamp, version=newBlockToSave.version)
 	tx.create(newBlockNode)
 	for transaction in transactions:
@@ -78,19 +75,18 @@ def storeNodes(newBlockToSave, transactions, inputs, outputs):
 
 		transactionNode = Node("Transaction", transactionVersion=transaction.transactionVersion, 
 					inputCount=transaction.inputCount, outputCount=transaction.outputCount, 
-					lockTime=transaction.lockTime, hashTransaction=transaction.hashTransaction,
-					hashTransactionReduced=transaction.hashTransactionReduced)
+					lockTime=transaction.lockTime, hashTransaction=transaction.hashTransaction)
 		tx.create(transactionNode)
 
 		for inputObj in inputs:
 			inputNode = Node("Input", indexPreviousTxout=inputObj.indexPreviousTxout, scriptLength=inputObj.scriptLength,
 					script=inputObj.script, sequenceNumber=inputObj.sequenceNumber,
-					hashPreviousTransactionReduced=inputObj.hashPreviousTransactionReduced)
+					hashPreviousTransaction=inputObj.hashPreviousTransaction)
 			tx.create(inputNode)
 			tx.create(Relationship(inputNode, transactionNode))
 			if(transaction.inputCount > 1):
-				previousOutput = blockchain_db.data("OPTIONAL MATCH (t:Transaction {hashTransactionReduced: {hashPreviousTransactionReduced}})<-[:TO]-(out:Output) WHERE out.indexTxOut={indexPreviousTxout} RETURN out", 
-							hashPreviousTransactionReduced=inputObj.hashPreviousTransactionReduced, 
+				previousOutput = blockchain_db.data("OPTIONAL MATCH (t:Transaction {hashTransaction: {hashPreviousTransaction}})<-[:TO]-(out:Output) WHERE out.indexTxOut={indexPreviousTxout} RETURN out", 
+							hashPreviousTransaction=inputObj.hashPreviousTransaction, 
 							indexPreviousTxout=inputObj.indexPreviousTxout)
 				previousOutputNode = previousOutput[0]['out']
 				if (previousOutputNode != None):
@@ -100,8 +96,8 @@ def storeNodes(newBlockToSave, transactions, inputs, outputs):
 					inputsNodesWithoutOrigin.append(inputNode)
 
 		for outputObj in outputs:
-			outputNode = Node("Output", valueSatoshis=outputObj.valueSatoshis, scriptLength=outputObj.scriptLength,
-					lockingScript=outputObj.lockingScript, indexTxOut=outputObj.indexTxOut)
+			outputNode = Node("Output", valueSatoshis=outputObj.valueSatoshis,
+					scriptPublicKey=outputObj.scriptPublicKey, indexTxOut=outputObj.indexTxOut)
 			tx.create(Relationship(outputNode, transactionNode))
 
 		tx.create(Relationship(transactionNode, newBlockNode))
@@ -110,8 +106,8 @@ def storeNodes(newBlockToSave, transactions, inputs, outputs):
 
 	# Ahora se intentan relacionar los nodos input a los que no se ha encontrado origen porque esta en el mismo bloque
 	for k in xrange(len(inputsWithoutOrigin)):
-		previousOutput = blockchain_db.data("OPTIONAL MATCH (t:Transaction {hashTransactionReduced: {hashPreviousTransactionReduced}})<-[:TO]-(out:Output) WHERE out.indexTxOut={indexPreviousTxout} RETURN out", 
-					hashPreviousTransactionReduced=inputsWithoutOrigin[k].hashPreviousTransactionReduced, 
+		previousOutput = blockchain_db.data("OPTIONAL MATCH (t:Transaction {hashTransaction: {hashPreviousTransaction}})<-[:TO]-(out:Output) WHERE out.indexTxOut={indexPreviousTxout} RETURN out", 
+					hashPreviousTransaction=inputsWithoutOrigin[k].hashPreviousTransaction, 
 					indexPreviousTxout=inputsWithoutOrigin[k].indexPreviousTxout)
 		previousOutputNode = previousOutput[0]['out']
 		if (previousOutputNode != None):
@@ -120,15 +116,14 @@ def storeNodes(newBlockToSave, transactions, inputs, outputs):
 		else:
 			print "Se sigue sin guardar"
 
-	hashHeaderReduced = newBlockToSave.hashHeaderReduced
-	previousChainBlock = blockchain_db.find_one('Block', property_key='hashHeaderReduced', property_value=hashHeaderReduced)
+	previousChainBlock = blockchain_db.find_one('Block', property_key='hashHeader', property_value=hashHeader)
 	if(previousChainBlock != None):
 		prevBlockRelation = Relationship(newBlockNode,'PREVIOUS_BLOCK',previousChainBlock)
 		blockchain_db.create(prevBlockRelation)
 
 def getBlock(blockIndex):
 	urlBlockToSave = ''.join([urlBlock,str(blockIndex)])
-	print urlBlockToSave
+	print 'urlBlockToSave: ' + urlBlockToSave
 	blockToSave = getJSON(urlBlockToSave)
 	while(not blockToSave):
 		blockToSave = getJSON(urlBlockToSave)
@@ -144,7 +139,6 @@ def getBlock(blockIndex):
 	transactionsCount = str(blockToSave["n_tx"])
 	print "Numero de transacciones:",transactionsCount
 	hashHeader = str(blockToSave["hash"])
-	hashHeaderReduced = hashHeader[57::]
 	timeStamp = str(blockToSave["time"])
 	version = str(blockToSave["ver"])
 
@@ -154,7 +148,7 @@ def getBlock(blockIndex):
 	nonce = str(blockToSave["nonce"])
 	blockHeader = ''.join([version,previousBlockHash,merkleRoot,timeStamp,nonce])
 
-	newBlockToSave = Block(magicID,blockSize,blockHeader,transactionsCount,hashHeader,hashHeaderReduced,timeStamp,version)
+	newBlockToSave = Block(magicID,blockSize,blockHeader,transactionsCount,hashHeader,timeStamp,version)
 
 	counterTx = 0
 	for transaction in blockToSave["tx"]:
@@ -165,9 +159,8 @@ def getBlock(blockIndex):
 		outputCount = str(len(transaction["out"]))
 		lockTime = str(transaction["lock_time"])	
 		hashTransaction = str(transaction["hash"])
-		hashTransactionReduced = hashTransaction[57::]
 
-		transactionObject = Transaction(transactionVersion,inputCount,outputCount,lockTime,hashTransaction,hashTransactionReduced) 
+		transactionObject = Transaction(transactionVersion,inputCount,outputCount,lockTime,hashTransaction) 
 		transactions.append(transactionObject)
 
 		for inputN in transaction["inputs"]:
@@ -180,21 +173,21 @@ def getBlock(blockIndex):
 				previousTx = getJSON(urlPreviousTx)
 				while(not previousTx):
 					previousTx = getJSON(urlPreviousTx)
-				hashPreviousTransactionReduced = str(previousTx["hash"])[57::]
+				hashPreviousTransaction = str(previousTx["hash"])
 			else:
 				indexPreviousTxout = ''.join(['f']*8)
 				script = str(inputN["script"])
 				scriptLength = str(len(script)/2)
 				sequenceNumber = str(hex(inputN["sequence"]))
-				hashPreviousTransactionReduced = '0'*7
-			inputs.append(Input(indexPreviousTxout,scriptLength,script,sequenceNumber,hashPreviousTransactionReduced))
+				hashPreviousTransaction = '0'*64
+			inputs.append(Input(indexPreviousTxout,scriptLength,script,sequenceNumber,hashPreviousTransaction))
 
 		for output in transaction["out"]:
 			valueSatoshis = str(output["value"])
 			lockingScript = str(output["script"])
-			scriptLength = str(len(lockingScript)/2) 
+			scriptPublicKey = getScriptPublicKey(lockingScript)
 			indexTxOut = str(hex(output["n"])) # PENSAR SI ES MEJOR SIEMPRE EN INT(Habría que modificar guardado)
-			outputs.append(Output(valueSatoshis,scriptLength,lockingScript,indexTxOut))
+			outputs.append(Output(valueSatoshis,scriptPublicKey,indexTxOut))
 		counterTx += 1
 		if(mod(counterTx,100)==0):
 			print counterTx
@@ -206,7 +199,25 @@ def getBlock(blockIndex):
 
 	storeNodes(newBlockToSave,transactions,inputs,outputs)
 
-	
+def getScriptPublicKey(lockingScript):
+	lenScript = len(lockingScript);
+	if(lenScript == 134):
+		scriptPublicKey = lockingScript[2:132]
+	elif(lenScript == 132):
+		scriptPublicKey = lockingScript[:132]
+	elif(lenScript == 10):
+		return '0'
+	else:
+		if('76a9' in lockingScript):
+			indexStart = lockingScript.index('76a9')
+			scriptPublicKey = lockingScript[indexStart+6:indexStart+46]
+		elif('a914' in lockingScript):
+			indexStart = lockingScript.index('a914')
+			scriptPublicKey = lockingScript[indexStart+4:indexStart+44]
+		else:
+			return '0'
+
+	return scriptPublicKey
 
 
 def main():

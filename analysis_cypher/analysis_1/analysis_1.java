@@ -3,11 +3,16 @@ package analysis_1;
 import org.neo4j.driver.v1.*;
 import java.util.*;
 import common.*;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.util.Iterator;
+import org.json.simple.*;
+import org.json.simple.parser.*;
 
 //javac -cp neo4j-java-driver-1.0.6.jar analysis_1.java
 //java -cp .:neo4j-java-driver-1.0.6.jar Execute
-//javac -cp classes:neo4j-java-driver-1.0.6.jar analysis_1/analysis_1.java -d classes
-//java -cp ./classes:neo4j-java-driver-1.0.6.jar analysis_1.Execute
+//javac -cp classes:neo4j-java-driver-1.0.6.jar:json-simple-1.1.1.jar analysis_1/analysis_1.java -d classes
+//java -cp ./classes:neo4j-java-driver-1.0.6.jar:json-simple-1.1.1.jar analysis_1.Execute
 
 // 1ª PRUEBA
 //1 - START o=node(586) MATCH (o)-[r:TO]->(t:Transaction)-[r2:TO]->(b:Block) RETURN o,r,t,r2,b
@@ -35,10 +40,64 @@ MATCH (n)-[r:TO]->(t:Transaction) WHERE ID(t)=11211 RETURN n,r,t
 
 class Execute {
 
+	@SuppressWarnings("unchecked")
 	public static void main (String[] args){
+
+		String mode = "";
+		String date = "";
+		String hashHeader = "";
+		String hashTransaction = "";
+		String indexOutput = "";
+		//String scope = "0";
+		boolean correctParams = false;
 
 		Driver driver = GraphDatabase.driver( "bolt://localhost:7687", AuthTokens.basic( "neo4j", "123456" ) );
 		Session session = driver.session();
+
+		String pathFileConfig = "/home/ignacio/appNodeTFG/configuration_files/analysis_1_config.json";
+		String pathFileResults = "/home/ignacio/appNodeTFG/configuration_files/analysis_1_results.json";
+		JSONParser parser = new JSONParser();
+		try{
+			Object obj = parser.parse(new FileReader(pathFileConfig));
+
+			JSONObject jsonObject = (JSONObject) obj;
+
+			//String scopeJSON = (String) jsonObject.get("scope");
+			//if(scopeJSON != null){
+			//	scope = scopeJSON;
+			//}
+
+			mode = (String) jsonObject.get("mode");
+			switch(mode){
+				case "date":
+					date = (String) jsonObject.get("date");
+					break;
+				case "address":
+					break;
+				case "block":
+					hashHeader = (String) jsonObject.get("hashHeader");
+					break;
+				case "transaction":
+					hashTransaction = (String) jsonObject.get("hashTransaction");
+					break;
+				case "transactionWithIndex":
+					hashTransaction = (String) jsonObject.get("hashTransaction");
+					indexOutput = (String) jsonObject.get("indexOutput");
+					break;
+				default:
+					break;
+			}
+			correctParams = true;
+		}catch (Exception e){
+			correctParams = false;
+		}
+
+		if(correctParams){
+			System.out.println("Mode: " + mode);
+			System.out.println("date: " + date);
+		}
+
+		//String timeStamp = ; ------------- FALTA PASARLO DESDE DATE A TIMESTAMP
 
 		// Bloques analizados de los que se extrae luego la información
 		List<BlockNodes> blocksAnalysed = new ArrayList<BlockNodes>();
@@ -51,7 +110,7 @@ class Execute {
 
 		// PENSAR SI AÑADIR EN EL MODELO UN FLAG QUE INDIQUE SI ES LA TRANSACCIÓN RECOMPENSA
 		// Mode debe ser date, address, block, transaction, transactionWithIndex, transactionAllIndexes
-		String mode = "transactionWithIndex";
+		//String mode = "transactionWithIndex";
 		// Falta añadir en el modo "date" para que coja la transacción recompensa
 		// Para probar buscando desde timeStamp -> "date"
 		//String timeStamp = "496aee57";
@@ -72,17 +131,18 @@ class Execute {
 		//initialParam.put("hashTransaction",hashTransaction);
 		// ------------------------------------
 		// Para probar buscando desde transacción con indice output -> "transactionWithIndex"
-		String hashTransaction = "4f829f34a47c5967a437e556a0456cd72b6ef2bf9f4fe0222242cf64dd5b6ceb";
-		hashTransaction = hashTransaction.substring(hashTransaction.length()-7,hashTransaction.length());
-		String indexOutput = "00000000";
-		initialParam.put("hashTransaction",hashTransaction);
-		initialParam.put("indexOutput",indexOutput);
+		//hashTransaction = "a87e31b0e252fecc4a487e054fbcbd2545ea8a110747ef875a59b2e3780101db";
+		//hashTransaction = hashTransaction.substring(hashTransaction.length()-7,hashTransaction.length());
+		//indexOutput = "00000001";
+		//initialParam.put("hashTransaction",hashTransaction);
+		//initialParam.put("indexOutput",indexOutput);
 		// ------------------------------------
 		// Para probar buscando desde transacción y flag para analizar todos los outputs -> "transactionAllIndexes"
 		// Falta por hacer
 
 		// ------------------------------------
-		int scope = 2;
+		initialParam.put("timeStamp",date);
+		int scope = 1;
 		boolean analysisFinished = true;
 		InitialBlock originBlock = new InitialBlock();
 		// Comprobar lo que devuelve getOriginNodes antes de seguir
@@ -133,22 +193,106 @@ class Execute {
 		System.out.println("");
 		int numeroBloques = blocksAnalysed.size();
 		System.out.println("Número de bloques analizados: " + numeroBloques);
-
-
 		
-    	/*
-		System.out.println(result.next().get("b"));  //.asMap().get("b")
-		Object node = result.next().get("b");
-		for (String key : node.getPropertyKeys()) {
-    		System.out.println("Key: " + key + ", Value: " +  node.getProperty(key));
-		}
-		*/
-
-		//Values.parameters() ---- OTRA OPCION PARA METER PARAMETROS
-
 		session.close();
 		driver.close();
-	}
 
+		// ----------------------------------------
+		// GUARDADO DE LOS RESULTADOS EN EL FICHERO
+		// ----------------------------------------
+
+		List<Map<String, Object>> results = new ArrayList<Map<String, Object>>();
+		Map<String, Object> node = new HashMap<String, Object>();
+		JSONObject objW = new JSONObject();
+
+		objW.put("end", "true");
+
+		JSONArray blocks = new JSONArray();
+		JSONObject block = new JSONObject();
+		JSONObject transaction = new JSONObject();
+		JSONArray inputs = new JSONArray();
+		JSONArray outputs = new JSONArray();
+		JSONObject input = new JSONObject();
+		JSONObject output = new JSONObject();
+
+		results = originBlock.getNodes();
+		block.put("origin", "true");
+		node = results.get(0);
+		block.put("hashHeader", node.get("hashHeader"));
+		block.put("date", node.get("timeStamp"));
+		block.put("transactionsCount", node.get("transactionsCount"));
+
+		node = results.get(1);
+		transaction.put("hashTransaction", node.get("hashTransaction"));
+		transaction.put("inputCount", node.get("inputCount"));
+		transaction.put("outputCount", node.get("outputCount"));
+		block.put("transaction", transaction);
+
+		block.put("inputs", inputs);
+
+		node = results.get(2);
+		output.put("lockingScript", node.get("lockingScript"));
+		output.put("indexTxOut", node.get("indexTxOut"));
+		output.put("valueSatoshis", node.get("valueSatoshis"));
+		output.put("changeOut", "true");
+
+		outputs.add(output);
+		block.put("outputs", outputs);
+
+		blocks.add(block);
+		
+		List<JSONObject> blockList = new ArrayList<JSONObject>();
+		List<JSONObject> transactionList = new ArrayList<JSONObject>();
+		List<JSONArray> inputsArrayList = new ArrayList<JSONArray>();
+		List<JSONArray> outputsArrayList = new ArrayList<JSONArray>();
+		List<JSONObject> inputList = new ArrayList<JSONObject>();
+		List<JSONObject> outputList = new ArrayList<JSONObject>();
+		for (int i=0; i<blocksAnalysed.size(); i++){
+			results = blocksAnalysed.get(i).getNodes();
+			blockList.add(new JSONObject()); 
+			transactionList.add(new JSONObject());
+			inputsArrayList.add(new JSONArray());
+			outputsArrayList.add(new JSONArray());
+
+			blockList.get(i).put("origin", "false");
+			node = results.get(0);
+			blockList.get(i).put("hashHeader", node.get("hashHeader"));
+			blockList.get(i).put("date", node.get("timeStamp"));
+			blockList.get(i).put("transactionsCount", node.get("transactionsCount"));
+
+			node = results.get(1);
+			transactionList.get(i).put("hashTransaction", node.get("hashTransaction"));
+			transactionList.get(i).put("inputCount", node.get("inputCount"));
+			transactionList.get(i).put("outputCount", node.get("outputCount"));
+			blockList.get(i).put("transaction", transactionList.get(i));
+
+			for(int j=2; j<results.size()-1; j++){
+				inputList.add(new JSONObject());
+				node = results.get(j);
+				inputList.get(j-2).put("hashPreviousTransaction", node.get("hashPreviousTransaction"));
+				inputList.get(j-2).put("indexPreviousTxout", node.get("indexPreviousTxout"));
+				inputsArrayList.get(i).add(inputList.get(j-2));
+				blockList.get(i).put("inputs",inputsArrayList.get(i));
+			}
+
+			outputList.add(new JSONObject());
+			node = results.get(results.size()-1);
+			outputList.get(i).put("lockingScript", node.get("lockingScript"));
+			outputList.get(i).put("indexTxOut", node.get("indexTxOut"));
+			outputList.get(i).put("valueSatoshis", node.get("valueSatoshis"));
+			outputList.get(i).put("changeOut", "true");
+
+			outputsArrayList.get(i).add(outputList.get(i));
+			blockList.get(i).put("outputs",outputsArrayList.get(i));
+
+			blocks.add(blockList.get(i));
+		}
+	
+		try(FileWriter file = new FileWriter(pathFileResults)){
+			file.write(blocks.toJSONString());
+			System.out.println("Successfully Copied JSON Object to File...");
+		}catch(Exception e){}
+	
+	}
 
 }

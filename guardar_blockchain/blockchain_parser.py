@@ -9,13 +9,12 @@ from py2neo import Graph, Node, Relationship
 
 
 class Block(object):       
-	def __init__(self,magicID,blockSize,blockHeader,transactionsCount,hashHeader,hashHeaderReduced,timeStamp,version):
+	def __init__(self,magicID,blockSize,blockHeader,transactionsCount,hashHeader,timeStamp,version):
 		self.magicID = magicID
 		self.blockSize = blockSize
 		self.blockHeader = blockHeader
 		self.transactionsCount = transactionsCount
 		self.hashHeader = hashHeader
-		self.hashHeaderReduced = hashHeaderReduced
 		self.timeStamp = timeStamp
 		self.version = version
 
@@ -29,7 +28,8 @@ class Header(object):
 		self.difficultyTarget = difficultyTarget
 		self.nonce = nonce
 
-
+#4104f0d742c83392ae7f885fca7739a1681df9039d9930f4eede9fef7b7c85fb191fad43e584345e8b872c84260b39c2e192512ead631083be327a6825fa0ba561e5ac
+#4104f0d742c83392ae7f885fca7739a1681df9039d9930f4eede9fef7b7c85fb191fad43e
 class Transaction(object):
 	def __init__(self,transactionVersion,inputCount,outputCount,lockTime,hashTransaction,hashTransactionReduced):
 		self.transactionVersion = transactionVersion
@@ -50,10 +50,9 @@ class Input(object):
 
 
 class Output(object):
-	def __init__(self,valueSatoshis,scriptLength,lockingScript,indexTxOut):
+	def __init__(self,valueSatoshis,scriptPublicKey,indexTxOut):
 		self.valueSatoshis = valueSatoshis
-		self.scriptLength = scriptLength
-		self.lockingScript = lockingScript
+		self.scriptPublicKey = scriptPublicKey
 		self.indexTxOut = indexTxOut
 
 
@@ -71,8 +70,8 @@ timeStamp3minutes = 180
 flag = threading.Event()
 
 blockchain_db = Graph("http://localhost:7474/db/data/", user="neo4j", password="123456")
-blockchain_db.run("CREATE INDEX ON :Block(hashHeaderReduced)")
-blockchain_db.run("CREATE INDEX ON :Transaction(hashTransactionReduced)")
+blockchain_db.run("CREATE INDEX ON :Block(hashHeader)")
+blockchain_db.run("CREATE INDEX ON :Transaction(hashTransaction)")
 #blockchain_db.schema.create_index(Block,hashHeaderReduced)
 #blockchain_db.schema.create_index(Transaction,hashTransactionReduced)
 
@@ -238,18 +237,21 @@ def getBlockContent(block):
 	else:
 		previousTimeStamp = int(timeStamp,16)
 
+	# SIRVE PARA COMPROBAR SI ESE BLOQUE HA SIDO GUARDADO POR LA PARTE DE REAL-TIME
+	if(timeStampInt > (1484233949+timeStamp3minutes)):
+		return
+
 
 	headerBlockHex = block[16:176].decode('hex')
 	hashHeader = hashlib.sha256(hashlib.sha256(headerBlockHex).digest()).digest().encode('hex_codec')
 	hashHeader = endianness(hashHeader)
-	hashHeaderReduced = hashHeader[57::]
 
 
 	# CONTADOR DE TRANSACCIONES
 	variableLenghtTransactions = getVariableLength(block[176:194])
 	transactionsCount = int(endianness(block[176:176+variableLenghtTransactions*2]),16)
 	
-	newBlockToSave = Block(magicID,blockSize,blockHeader,transactionsCount,hashHeader,hashHeaderReduced,timeStamp,version)
+	newBlockToSave = Block(magicID,blockSize,blockHeader,transactionsCount,hashHeader,timeStamp,version)
 	
 	# TRANSACCIONES
 	indexBeginTransaction = 176+variableLenghtTransactions*2 
@@ -283,7 +285,7 @@ def getBlockContent(block):
 				tx = blockchain_db.begin() # FALTA CREAR LA RELACION CON EL BLOQUE ANTERIOR
 				newBlockNode = Node("Block", magicId=newBlockToSave.magicID, blockSize=newBlockToSave.blockSize, 
 					blockHeader=newBlockToSave.blockHeader, transactionsCount=newBlockToSave.transactionsCount, 
-					hashHeader=newBlockToSave.hashHeader, hashHeaderReduced=newBlockToSave.hashHeaderReduced,
+					hashHeader=newBlockToSave.hashHeader,
 					timeStamp=newBlockToSave.timeStamp, version=newBlockToSave.version)
 				tx.create(newBlockNode)
 				tx.commit()
@@ -318,7 +320,7 @@ def getBlockContent(block):
 				tx = blockchain_db.begin()
 				newBlockNode = Node("Block", magicId=newBlockToSave.magicID, blockSize=newBlockToSave.blockSize, 
 					blockHeader=newBlockToSave.blockHeader, transactionsCount=newBlockToSave.transactionsCount, 
-					hashHeader=newBlockToSave.hashHeader, hashHeaderReduced=newBlockToSave.hashHeaderReduced,
+					hashHeader=newBlockToSave.hashHeader, 
 					timeStamp=newBlockToSave.timeStamp, version=newBlockToSave.version)
 				tx.create(newBlockNode)
 				tx.commit()
@@ -328,12 +330,13 @@ def getBlockContent(block):
 
 
 			# SIN ENDIANNESS
-			lockingScript = block[indexFirstOutput+indexesFromFirstOutput:indexFirstOutput+indexesFromFirstOutput+scriptLength*2]
+			scriptPublicKey = block[indexFirstOutput+indexesFromFirstOutput:indexFirstOutput+indexesFromFirstOutput+scriptLength*2]
+			scriptPublicKey = getScriptPublicKey(scriptPublicKey)
 			indexesFromFirstOutput += scriptLength*2
 
 			indexOrderOut = ''.join(['0'*(8-len(str(hex(outputsSaved))[2:])),str(hex(outputsSaved))[2:]])
 
-			outputs.append(Output(valueSatoshis,scriptLength,lockingScript,indexOrderOut))
+			outputs.append(Output(valueSatoshis,scriptPublicKey,indexOrderOut))
 			outputsSaved += 1
 
 
@@ -362,7 +365,7 @@ def getBlockContent(block):
 
 	newBlockNode = Node("Block", magicId=newBlockToSave.magicID, blockSize=newBlockToSave.blockSize, 
 					blockHeader=newBlockToSave.blockHeader, transactionsCount=newBlockToSave.transactionsCount, 
-					hashHeader=newBlockToSave.hashHeader, hashHeaderReduced=newBlockToSave.hashHeaderReduced,
+					hashHeader=newBlockToSave.hashHeader, 
 					timeStamp=newBlockToSave.timeStamp, version=newBlockToSave.version)
 	tx.create(newBlockNode)
 
@@ -400,8 +403,8 @@ def getBlockContent(block):
 					inputsNodesWithoutOrigin.append(inputNode)
 
 		for outputObj in transactionsOutputs[iTx]:
-			outputNode = Node("Output", valueSatoshis=outputObj.valueSatoshis, scriptLength=outputObj.scriptLength,
-					lockingScript=outputObj.lockingScript, indexTxOut=outputObj.indexTxOut)
+			outputNode = Node("Output", valueSatoshis=outputObj.valueSatoshis, 
+					scriptPublicKey=outputObj.scriptPublicKey, indexTxOut=outputObj.indexTxOut)
 			#tx.create(outputNode)
 			tx.create(Relationship(outputNode, transactionNode))
 
@@ -426,20 +429,19 @@ def getBlockContent(block):
 	# Buscamos el bloque anterior para crear la relación entre bloques
 	# ----------------------------------------------------------------
 	if(previousBlockHash != ''.join(['0']*64)):
-		previousBlockHashReduced = previousBlockHash[57::]
 		previousChainBlock = None
 		# Bloque anterior
 		if(len(lastSixBlocks)>0):
 			for block in lastSixBlocks[::-1]:
-				if(block['hashHeaderReduced'] == previousBlockHashReduced):
+				if(block['hashHeader'] == previousBlockHash):
 					previousChainBlock = block
 					break
 			if(previousChainBlock == None): 
 				previousChainBlock = blockchain_db.find_one('Block', 
-					property_key='hashHeaderReduced', property_value=previousBlockHashReduced)
+					property_key='hashHeader', property_value=previousBlockHash)
 		else:
 			previousChainBlock = blockchain_db.find_one('Block', 
-				property_key='hashHeaderReduced', property_value=previousBlockHashReduced)
+				property_key='hashHeader', property_value=previousBlockHash)
 
 		if(previousChainBlock != None):
 			prevBlockRelation = Relationship(newBlockNode,'PREVIOUS_BLOCK',previousChainBlock)
@@ -447,6 +449,28 @@ def getBlockContent(block):
 		if(len(lastSixBlocks)==6):
 			lastSixBlocks.remove(lastSixBlocks[0])
 	
+
+def getScriptPublicKey(lockingScript):
+	lenScript = len(lockingScript);
+	if(lenScript == 134):
+		scriptPublicKey = lockingScript[2:132]
+	elif(lenScript == 132):
+		scriptPublicKey = lockingScript[:132]
+	elif(lenScript == 10):
+		return '0'
+	else:
+		if('76a9' in lockingScript):
+			indexStart = lockingScript.index('76a9')
+			scriptPublicKey = lockingScript[indexStart+6:indexStart+46]
+		elif('a914' in lockingScript):
+			indexStart = lockingScript.index('a914')
+			scriptPublicKey = lockingScript[indexStart+4:indexStart+44]
+		else:
+			return '0'
+
+	return scriptPublicKey
+
+
 
 def getVariableLength(field):
 	if(field == ''):
@@ -460,7 +484,6 @@ def getVariableLength(field):
 	else:
 		return 9
 	
-
 
 def endianness(field):
 	bytesField = len(field)/2
@@ -500,7 +523,6 @@ def main():
 	readBlocksThread = threading.Thread(target=readBlockchain, name='ReadBlockchain')
 	readBlocksThread.start()
 	saveBlockchain()
-
 
 
 main()
